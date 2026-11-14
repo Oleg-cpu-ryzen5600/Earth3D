@@ -28,7 +28,23 @@ const isTouch = window.matchMedia('(pointer: coarse)').matches;
 const getPixelRatio = () => Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.005, 100);
-const HOME_POSITION = new THREE.Vector3(-3.2, 2.9, -1.2).setLength(5); // start view, also used by "Reset view"
+const AXIAL_TILT = THREE.MathUtils.degToRad(23.5);
+
+// Direction from the globe centre to a point on the surface, in scene space
+// (matches the equirectangular UV layout of THREE.SphereGeometry + the globe's tilt)
+const latLonToDirection = (lat, lon) =>
+{
+    const phi = THREE.MathUtils.degToRad(lon + 180);
+    const latR = THREE.MathUtils.degToRad(lat);
+    return new THREE.Vector3(-Math.cos(phi) * Math.cos(latR), Math.sin(latR), Math.sin(phi) * Math.cos(latR))
+        .applyAxisAngle(new THREE.Vector3(1, 0, 0), AXIAL_TILT);
+};
+
+// Start view (also used by "Reset view"): centred on Ukraine
+const HOME_LAT = 48.5;
+const HOME_LON = 31.5;
+const HOME_DISTANCE = 3;  // Earth radii from the centre: Ukraine and its neighbours fill the view
+const HOME_POSITION = latLonToDirection(HOME_LAT, HOME_LON).multiplyScalar(HOME_DISTANCE);
 camera.position.copy(HOME_POSITION);
 scene.add(camera);
 
@@ -76,7 +92,7 @@ const earthBaseTexture = loadTexture(earth2kUrl, true);
 // Globe (tilted group)
 // ---------------------------------------------------------------------------
 const globe = new THREE.Group();
-globe.rotation.x = THREE.MathUtils.degToRad(23.5); // axial tilt
+globe.rotation.x = AXIAL_TILT;
 scene.add(globe);
 
 // Earth: evenly lit, no lighting calculations at all
