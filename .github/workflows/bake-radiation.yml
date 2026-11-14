@@ -1,0 +1,54 @@
+name: Bake radiation texture
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Use Safecast readings captured on or after this date (YYYY-MM-DD)"
+        required: false
+        default: "2018-01-01"
+      min_count:
+        description: "Minimum readings per 0.5° cell"
+        required: false
+        default: "10"
+
+permissions:
+  contents: write
+  actions: write   # to trigger the Pages deploy after committing
+
+concurrency:
+  group: bake-radiation
+  cancel-in-progress: false
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pillow numpy pandas requests
+
+      - name: Bake radiation map from the Safecast dataset
+        run: python -u scripts/bake_radiation.py --since "${{ inputs.since }}" --min-count "${{ inputs.min_count }}"
+
+      - name: Commit texture
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/textures/radiation.webp src/radiation-meta.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Bake radiation texture (Safecast)"
+          git push
+
+      - name: Redeploy GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main --repo "${{ github.repository }}"
