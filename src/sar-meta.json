@@ -1,12 +1,43 @@
 {
-  "layer": "NISAR_L2_Geocoded_Polarimetric_Covariance",
-  "title": "NISAR L-band backscatter (GCOV, false colour)",
-  "start": "2026-10-19",
+  "title": "Multi-sensor SAR backscatter (NISAR L-band + Sentinel-1 C-band, NISAR colour scale)",
+  "start": "2026-10-07",
   "end": "2026-11-11",
-  "days": 24,
+  "days": 36,
+  "sources": [
+    {
+      "name": "NISAR L-band GCOV (NASA-ISRO)",
+      "layer": "NISAR_L2_Geocoded_Polarimetric_Covariance",
+      "start": "2026-10-07",
+      "end": "2026-11-11",
+      "role": "primary"
+    },
+    {
+      "name": "Sentinel-1 C-band RTC (ESA / NASA OPERA)",
+      "layer": "OPERA_L2_Radiometric_Terrain_Corrected_SAR_Sentinel-1",
+      "start": "2026-10-19",
+      "end": "2026-11-11",
+      "role": "cross-check, RFI replacement, gap fill (harmonised to NISAR colour scale)"
+    },
+    {
+      "name": "MODIS IGBP land cover",
+      "layer": "MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual",
+      "role": "reference classes for harmonisation"
+    },
+    {
+      "name": "OSM land mask",
+      "layer": "OSM_Land_Mask",
+      "role": "land / ice clipping"
+    }
+  ],
+  "stats": {
+    "landCoveredPercent": 97.7,
+    "nisarSharePercent": 96.3,
+    "sentinel1SharePercent": 3.7,
+    "nisarFlaggedRfiPercentOfLand": 4.2,
+    "gapsFilledBySentinel1PercentOfLand": 0.2,
+    "crossSensorMedianColourDifference": 26.4
+  },
   "width": 4096,
   "height": 2048,
-  "coveragePercent": 29.9,
-  "method": "median of valid days, swath edges eroded, land mask (OSM_Land_Mask)",
   "source": "NASA GIBS"
 }
