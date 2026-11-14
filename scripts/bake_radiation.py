@@ -9,7 +9,9 @@ Pipeline:
   1. stream https://api.safecast.org/system/measurements.tar.gz and read the CSV in chunks;
   2. keep recent radiation readings (--since, default 2018-01-01) in cpm or uSv/h;
      convert cpm -> uSv/h with the Safecast factor for the LND 7317 tube (334 cpm per uSv/h);
-     drop implausible values;
+     drop implausible values and dates in the future;
+     drop airborne readings: consecutive readings of the same log/device that moved faster than
+     200 km/h (dosimeters carried on flights measure cosmic radiation at altitude, 10-50x ground level);
   3. aggregate per 0.5 x 0.5 degree cell: geometric mean (robust to single spikes),
      only cells with at least --min-count readings are shown;
   4. colour with a logarithmic scale 0.02 .. 1 uSv/h; cells without measurements stay
@@ -54,6 +56,7 @@ STOPS = [
     (1.00, (200, 30, 60)),
 ]
 CELL_ALPHA = 235
+AIRBORNE_KMH = 200.0                              # faster than this between consecutive readings -> in a plane
 
 
 class ProgressReader:
@@ -99,10 +102,31 @@ def column(columns, *names):
     raise SystemExit(f"Column {names} not found in {list(columns)}")
 
 
-def aggregate(since, chunk_rows):
+def airborne_mask(key, when, lat, lon):
+    """True where the reading belongs to a fast-moving track (speed to the previous or next reading)."""
+    n = len(key)
+    fast = np.zeros(n, bool)
+    if n < 2:
+        return fast
+    same = (key[1:] == key[:-1])
+    dt = np.abs((when[1:] - when[:-1]) / np.timedelta64(1, "s")).astype(float)
+    la1, la2 = np.radians(lat[:-1]), np.radians(lat[1:])
+    dlat = la2 - la1
+    dlon = np.radians(lon[1:] - lon[:-1])
+    h = np.sin(dlat / 2) ** 2 + np.cos(la1) * np.cos(la2) * np.sin(dlon / 2) ** 2
+    dist_km = 2 * 6371.0 * np.arcsin(np.sqrt(np.clip(h, 0, 1)))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        kmh = dist_km / (dt / 3600.0)
+    seg = same & np.isfinite(kmh) & (dt > 0) & (dt <= 600) & (kmh > AIRBORNE_KMH)
+    fast[1:] |= seg
+    fast[:-1] |= seg
+    return fast
+
+
+def aggregate(since, until, chunk_rows):
     log_sum = np.zeros(NX * NY, np.float64)
     count = np.zeros(NX * NY, np.int64)
-    first, last, used, seen = None, None, 0, 0
+    first, last, used, seen, airborne = None, None, 0, 0, 0
 
     r = requests.get(URL, stream=True, timeout=300, headers={"User-Agent": "earth3d-radiation-baker"})
     r.raise_for_status()
@@ -123,9 +147,12 @@ def aggregate(since, chunk_rows):
             c_lon = column(header, "longitude")
             c_val = column(header, "value")
             c_unit = column(header, "unit")
-            reader = pd.read_csv(f, names=list(header), header=None, usecols=[c_time, c_lat, c_lon, c_val, c_unit],
+            keys = [c for c in header if c.strip().lower() in ("loader id", "device id")]
+            print("Columns:", header, "| track key:", keys)
+            reader = pd.read_csv(f, names=list(header), header=None,
+                                 usecols=[c_time, c_lat, c_lon, c_val, c_unit] + keys,
                                  chunksize=chunk_rows, on_bad_lines="skip", low_memory=True,
-                                 dtype={c_time: str, c_unit: str})
+                                 dtype={c: str for c in [c_time, c_unit] + keys})
             for chunk in reader:
                 seen += len(chunk)
                 t = chunk[c_time].astype(str).str.slice(0, 10)
@@ -135,7 +162,18 @@ def aggregate(since, chunk_rows):
                 val = pd.to_numeric(chunk[c_val], errors="coerce").to_numpy()
                 usvh = np.where(unit == "cpm", val / CPM_PER_USVH,
                                 np.where(unit.isin(["usv", "usv/h", "microsievert", "µsv/h", "usvh"]), val, np.nan))
-                ok = ((t >= since).to_numpy() & np.isfinite(usvh) & np.isfinite(lat) & np.isfinite(lon)
+                key = np.zeros(len(chunk))
+                if keys:
+                    key = chunk[keys[0]].fillna("")
+                    for k in keys[1:]:
+                        key = key + "|" + chunk[k].fillna("")
+                    key = key.to_numpy()
+                when = pd.to_datetime(chunk[c_time].astype(str).str.slice(0, 19), format="%Y-%m-%d %H:%M:%S",
+                                      errors="coerce").to_numpy()
+                fast = airborne_mask(key, when, lat, lon)
+                airborne += int(fast.sum())
+                ok = ((t >= since).to_numpy() & (t <= until).to_numpy() & ~fast
+                      & np.isfinite(usvh) & np.isfinite(lat) & np.isfinite(lon)
                       & (usvh >= VALID_USVH[0]) & (usvh <= VALID_USVH[1])
                       & (np.abs(lat) <= 90) & (np.abs(lon) <= 180) & ~((lat == 0) & (lon == 0)))
                 if not ok.any():
@@ -151,9 +189,10 @@ def aggregate(since, chunk_rows):
                 first = lo if first is None or lo < first else first
                 last = hi if last is None or hi > last else last
                 if seen % (chunk_rows * 20) < chunk_rows:
-                    print(f"  rows read {seen / 1e6:.0f} M, used {used / 1e6:.1f} M", flush=True)
-    print(f"Done: {seen / 1e6:.1f} M rows read, {used / 1e6:.1f} M used")
-    return log_sum.reshape(NY, NX), count.reshape(NY, NX), first, last, used, seen
+                    print(f"  rows read {seen / 1e6:.0f} M, used {used / 1e6:.1f} M, "
+                          f"airborne dropped {airborne / 1e6:.1f} M", flush=True)
+    print(f"Done: {seen / 1e6:.1f} M rows read, {used / 1e6:.1f} M used, {airborne / 1e6:.1f} M airborne dropped")
+    return log_sum.reshape(NY, NX), count.reshape(NY, NX), first, last, used, seen, airborne
 
 
 def colourize(usvh):
@@ -172,7 +211,8 @@ def main():
     ap.add_argument("--chunk-rows", type=int, default=2_000_000)
     args = ap.parse_args()
 
-    log_sum, count, first, last, used, seen = aggregate(args.since, args.chunk_rows)
+    until = time.strftime("%Y-%m-%d", time.gmtime())
+    log_sum, count, first, last, used, seen, airborne = aggregate(args.since, until, args.chunk_rows)
     shown = count >= args.min_count
     if shown.sum() < 100:
         raise SystemExit("Too few cells with data, not writing output")
@@ -204,6 +244,7 @@ def main():
         "stats": {
             "readingsUsed": used,
             "rowsRead": seen,
+            "airborneReadingsDropped": airborne,
             "cellsWithData": int(shown.sum()),
             "earthSurfaceCoveredPercent": round(float(area[shown].sum() / area.sum() * 100), 2),
             "medianUSvH": round(float(np.median(values)), 3),
