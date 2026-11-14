@@ -1,0 +1,39 @@
+name: Bake Earth textures
+
+on:
+  workflow_dispatch:
+    inputs:
+      layer:
+        description: "GIBS base layer"
+        required: false
+        default: "BlueMarble_ShadedRelief_Bathymetry"
+
+permissions:
+  contents: write
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pillow
+
+      - name: Bake 2K / 4K / 8K textures from NASA GIBS
+        run: python scripts/bake_earth.py --layer "${{ inputs.layer }}"
+
+      - name: Commit textures
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/textures/earth_2k.webp src/textures/earth_4k.webp src/textures/earth_8k.webp
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Bake Earth LOD textures (${{ inputs.layer }})"
+          git push
