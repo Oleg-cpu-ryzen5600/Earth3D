@@ -8,6 +8,10 @@ import earth8kUrl from './textures/earth_8k.webp';
 // SAR composite baked from NASA GIBS by scripts/bake_sar.py (GitHub Actions: "Bake SAR texture")
 import sarUrl from './textures/sar.webp';
 import sarMeta from './sar-meta.json';
+// Ozone (OMI/Aura OMTO3d) baked by scripts/bake_ozone.py; optional: until the first bake
+// these globs are empty and the layer is shown as "Coming soon"
+const ozoneUrl = Object.values(import.meta.glob('./textures/ozone.webp', { eager: true, query: '?url', import: 'default' }))[0] ?? null;
+const ozoneMeta = Object.values(import.meta.glob('./ozone-meta.json', { eager: true, import: 'default' }))[0] ?? null;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -331,10 +335,23 @@ const DATA_LAYERS = [
         icon: 'O₃',
         iconIsText: true,
         name: 'Ozone layer',
-        description: 'How much ozone shields the surface from the Sun\'s ultraviolet light.',
-        url: null,
+        description: 'How much ozone shields the surface from the Sun\'s ultraviolet light. Less ozone means more UV reaches the ground.',
+        url: ozoneUrl,
         enabled: false,
         opacity: 0.8,
+        details: ozoneMeta
+            ? `${ozoneMeta.start} – ${ozoneMeta.end} · NASA OMI/Aura · global mean ${ozoneMeta.stats.globalMeanDU} DU`
+            : null,
+        scale: ozoneMeta
+            ? {
+                stops: ozoneMeta.scale.stops,
+                min: ozoneMeta.scale.min,
+                max: ozoneMeta.scale.max,
+                unit: 'DU',
+                lowLabel: 'Thin (ozone hole)',
+                highLabel: 'Thick',
+            }
+            : null,
     },
     {
         id: 'radiation',
@@ -409,6 +426,29 @@ DATA_LAYERS.forEach((layer, index) =>
             legend.append(item);
         });
         card.append(legend);
+    }
+    if (layer.scale)
+    {
+        // continuous colour scale: gradient bar with values in its units
+        const { stops, min, max, unit, lowLabel, highLabel } = layer.scale;
+        const gradient = stops
+            .map(([value, color]) => `${color} ${((value - min) / (max - min)) * 100}%`)
+            .join(', ');
+        const scale = document.createElement('div');
+        scale.className = 'scale';
+        scale.innerHTML = `
+            <div class="scale-bar"></div>
+            <div class="scale-ticks"><span></span><span></span><span></span></div>
+            <div class="scale-labels"><span></span><span></span></div>`;
+        scale.querySelector('.scale-bar').style.background = `linear-gradient(to right, ${gradient})`;
+        const ticks = scale.querySelectorAll('.scale-ticks span');
+        ticks[0].textContent = `${min} ${unit}`;
+        ticks[1].textContent = `${Math.round((min + max) / 2)}`;
+        ticks[2].textContent = `${max} ${unit}`;
+        const labels = scale.querySelectorAll('.scale-labels span');
+        labels[0].textContent = lowLabel;
+        labels[1].textContent = highLabel;
+        card.append(scale);
     }
     if (layer.details)
     {

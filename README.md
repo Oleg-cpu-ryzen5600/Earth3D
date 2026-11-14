@@ -57,6 +57,7 @@ src/
 scripts/
   bake_sar.py        # builds sar.webp from NASA GIBS
   bake_earth.py      # builds earth_2k/4k/8k.webp from NASA GIBS Blue Marble
+  bake_ozone.py      # builds ozone.webp from NASA OMI/Aura OMTO3d (needs EARTHDATA_TOKEN)
 vercel.json          # cache headers for hashed assets
 ```
 
@@ -65,6 +66,17 @@ vercel.json          # cache headers for hashed assets
 `scripts/bake_earth.py` downloads one 8192×4096 image of the static GIBS layer
 `BlueMarble_ShadedRelief_Bathymetry` and downscales it (Lanczos) to 4K and 2K, so all levels have identical colours.
 Run it with **Actions → Bake Earth textures → Run workflow** (only needed once, or to switch the layer).
+
+## Ozone data
+
+`scripts/bake_ozone.py` builds `src/textures/ozone.webp` from **OMI/Aura OMTO3d V004** (total column ozone,
+daily, 1°×1°, Dobson units) from NASA GES DISC: it averages the latest N days (fills the gaps between orbits),
+upsamples to 2048×1024 and applies a fixed colour scale 150–500 DU (cells without data, e.g. polar night, stay transparent).
+`src/ozone-meta.json` stores the dates, the scale and statistics (global mean, area below 220 DU).
+
+The files require [Earthdata Login](https://urs.earthdata.nasa.gov): add a token as the repository secret
+`EARTHDATA_TOKEN` (and authorize the *NASA GESDISC DATA ARCHIVE* application in your Earthdata profile), then run
+**Actions → Bake ozone texture → Run workflow**. The token expires after 60 days.
 
 ## SAR data
 

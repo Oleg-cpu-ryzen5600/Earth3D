@@ -232,6 +232,7 @@ html, body
 
 .layer--off .layer-opacity,
 .layer--off .legend,
+.layer--off .scale,
 .layer--off .layer-details
 {
     opacity: 0.45;
@@ -272,6 +273,34 @@ html, body
     margin-top: 6px;
     color: var(--muted);
     font-size: 10px;
+}
+
+.scale
+{
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.scale-bar
+{
+    height: 8px;
+    border-radius: 4px;
+}
+
+.scale-ticks,
+.scale-labels
+{
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+}
+
+.scale-labels
+{
+    margin-top: 0;
+    opacity: 0.8;
 }
 
 /* ------------------------------------------------------------------ switch */
