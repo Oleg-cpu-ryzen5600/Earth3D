@@ -40,6 +40,10 @@
       ]
     ]
   },
+  "noData": {
+    "color": "rgba(118, 124, 136, 0.47)",
+    "label": "No data (polar night)"
+  },
   "stats": {
     "globalMeanDU": 280.5,
     "minDU": 155.7,
