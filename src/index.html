@@ -10,22 +10,24 @@
     <canvas class="webgl"></canvas>
     <div class="loader">Loading…</div>
 
-    <div class="panel">
-        <label class="panel-row">
-            <input type="checkbox" id="sar-toggle" checked>
-            <span>SAR backscatter (multi-sensor)</span>
-        </label>
-        <label class="panel-row">
-            <span>Opacity</span>
-            <input type="range" id="sar-opacity" min="0" max="1" step="0.05" value="1">
-        </label>
-        <div class="panel-note">NISAR L-band + Sentinel-1 C-band, NISAR colour scale</div>
-        <div class="panel-note" id="sar-period"></div>
-        <div class="panel-note" id="lod-level">Earth texture: 2K</div>
-    </div>
+    <aside class="panel" aria-label="Data layers">
+        <header class="panel-header">
+            <h1>🌍 Earth data layers</h1>
+            <button class="panel-collapse" type="button" aria-expanded="true" title="Collapse / expand">▾</button>
+        </header>
+        <div class="panel-body">
+            <p class="panel-hint">Switch a layer on and drag its slider to see it over the map.</p>
+            <div id="layer-list"></div>
+            <p class="panel-footer"><span id="lod-level">Map detail: 2K</span> · drag to rotate, scroll to zoom</p>
+        </div>
+    </aside>
+
+    <button class="reset-view" type="button" title="Straighten the globe and zoom back to the start view">
+        <span aria-hidden="true">⟲</span> Reset view
+    </button>
 
     <div class="credits">
-        SAR imagery: <a href="https://www.earthdata.nasa.gov/gibs" target="_blank" rel="noopener">NASA GIBS</a>, NASA-ISRO NISAR, ESA Sentinel-1 / NASA OPERA RTC, MODIS land cover ·
+        Data: <a href="https://www.earthdata.nasa.gov/gibs" target="_blank" rel="noopener">NASA GIBS</a> — NASA Blue Marble, NASA-ISRO NISAR, ESA Sentinel-1 / NASA OPERA RTC, MODIS land cover ·
         We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS),
         part of NASA's Earth Science Data and Information System (ESDIS).
     </div>

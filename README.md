@@ -8,6 +8,8 @@ Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/)
 - Atmosphere glow: a camera-facing ring around the silhouette with per-vertex alpha
 - 23.5° axial tilt, no automatic rotation — the globe moves only with the user
 - Orbit camera: drag to rotate, scroll to zoom down to ~300 km above the surface (controls slow down near the surface)
+- Data layer panel: a card per layer (💧 surface water & moisture, O₃ ozone layer, ☢️ radiation background) with an on/off switch, a visibility slider, a short plain-language description and a legend; layers without data yet are shown as *Coming soon*. New data is added by setting the layer's texture `url` in `DATA_LAYERS` (`src/script.js`)
+- **Reset view** button: smoothly flies back to the start position (north up, initial zoom)
 - Double click — fullscreen
 
 ## Performance

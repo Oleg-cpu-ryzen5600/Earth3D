@@ -28,7 +28,8 @@ const isTouch = window.matchMedia('(pointer: coarse)').matches;
 const getPixelRatio = () => Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.005, 100);
-camera.position.set(-3.2, 2.9, -1.2).setLength(5);
+const HOME_POSITION = new THREE.Vector3(-3.2, 2.9, -1.2).setLength(5); // start view, also used by "Reset view"
+camera.position.copy(HOME_POSITION);
 scene.add(camera);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -70,7 +71,6 @@ const loadTexture = (url, isColor) =>
 };
 
 const earthBaseTexture = loadTexture(earth2kUrl, true);
-const sarTexture = loadTexture(sarUrl, true);
 
 // ---------------------------------------------------------------------------
 // Globe (tilted group)
@@ -122,7 +122,7 @@ const showLod = (index) =>
     lodCurrent = index;
     earth.material.map = LOD_LEVELS[index].texture;
     earth.material.needsUpdate = true;
-    if (lodLabel) lodLabel.textContent = `Earth texture: ${LOD_LEVELS[index].label}`;
+    if (lodLabel) lodLabel.textContent = `Map detail: ${LOD_LEVELS[index].label}`;
     // free GPU memory of levels far above the one in use (8K is ~170 MB with mipmaps)
     LOD_LEVELS.forEach((level, i) =>
     {
@@ -152,7 +152,7 @@ const updateLod = () =>
     }
     if (level.loading) return;
     level.loading = true;
-    if (lodLabel) lodLabel.textContent = `Earth texture: ${LOD_LEVELS[lodCurrent].label} → loading ${level.label}…`;
+    if (lodLabel) lodLabel.textContent = `Map detail: ${LOD_LEVELS[lodCurrent].label} → loading ${level.label}…`;
     lazyLoader.load(level.url, (texture) =>
     {
         level.loading = false;
@@ -164,7 +164,7 @@ const updateLod = () =>
         else
         {
             if (target > lodCurrent + 1) { texture.dispose(); level.texture = null; } // no longer needed
-            if (lodLabel) lodLabel.textContent = `Earth texture: ${LOD_LEVELS[lodCurrent].label}`;
+            if (lodLabel) lodLabel.textContent = `Map detail: ${LOD_LEVELS[lodCurrent].label}`;
         }
     }, undefined, () =>
     {
@@ -173,35 +173,160 @@ const updateLod = () =>
     });
 };
 
-// SAR overlay: same sphere geometry, drawn on top of the surface (polygon offset avoids z-fighting)
-const sarMaterial = new THREE.MeshBasicMaterial({
-    map: sarTexture,
-    transparent: true,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
-});
-const sar = new THREE.Mesh(earth.geometry, sarMaterial);
-globe.add(sar);
-
-// UI: toggle + opacity
-const sarToggle = document.querySelector('#sar-toggle');
-const sarOpacity = document.querySelector('#sar-opacity');
-const updateSar = () =>
-{
-    sar.visible = sarToggle.checked;
-    sarMaterial.opacity = Number(sarOpacity.value);
-    sarOpacity.disabled = !sarToggle.checked;
-    requestRender();
-};
+// ---------------------------------------------------------------------------
+// Data layers
+// Each layer is a transparent copy of the globe drawn on top of the surface.
+// To add data for a layer, set `url` to its texture (equirectangular, with alpha):
+// its card in the panel becomes active automatically.
+// ---------------------------------------------------------------------------
 const sarStats = sarMeta.stats;
-document.querySelector('#sar-period').textContent =
-    `${sarMeta.start} – ${sarMeta.end}` +
-    (sarStats ? ` · NISAR ${sarStats.nisarSharePercent}% / Sentinel-1 ${sarStats.sentinel1SharePercent}%` : '');
-sarToggle.addEventListener('change', updateSar);
-sarOpacity.addEventListener('input', updateSar);
-updateSar();
+const DATA_LAYERS = [
+    {
+        id: 'water',
+        icon: '💧',
+        name: 'Surface water & moisture',
+        description: 'Radar satellites see how wet and rough the ground is, even through clouds and at night.',
+        url: sarUrl,
+        enabled: true,
+        opacity: 1,
+        details: `${sarMeta.start} – ${sarMeta.end} · NISAR + Sentinel-1`
+            + (sarStats ? ` (${sarStats.nisarSharePercent}% / ${sarStats.sentinel1SharePercent}%)` : ''),
+        legend: [
+            ['#3bd16f', 'Vegetation'],
+            ['#d65a8c', 'Cities, rock'],
+            ['#4a6fd6', 'Smooth or wet ground'],
+        ],
+    },
+    {
+        id: 'ozone',
+        icon: 'O₃',
+        iconIsText: true,
+        name: 'Ozone layer',
+        description: 'How much ozone shields the surface from the Sun\'s ultraviolet light.',
+        url: null,
+        enabled: false,
+        opacity: 0.8,
+    },
+    {
+        id: 'radiation',
+        icon: '☢️',
+        name: 'Radiation background',
+        description: 'Natural background radiation level at the surface.',
+        url: null,
+        enabled: false,
+        opacity: 0.8,
+    },
+];
+
+const layerList = document.querySelector('#layer-list');
+
+DATA_LAYERS.forEach((layer, index) =>
+{
+    const available = Boolean(layer.url);
+
+    // 3D overlay
+    if (available)
+    {
+        layer.material = new THREE.MeshBasicMaterial({
+            map: loadTexture(layer.url, true),
+            transparent: true,
+            depthWrite: false,
+            polygonOffset: true,           // drawn on top of the surface without z-fighting
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1 - index,
+        });
+        layer.mesh = new THREE.Mesh(earth.geometry, layer.material);
+        layer.mesh.renderOrder = index;
+        globe.add(layer.mesh);
+    }
+
+    // Card in the panel
+    const card = document.createElement('section');
+    card.className = 'layer' + (available ? '' : ' layer--soon');
+    card.innerHTML = `
+        <div class="layer-head">
+            <span class="layer-icon${layer.iconIsText ? ' layer-icon--text' : ''}" aria-hidden="true"></span>
+            <div class="layer-title">
+                <span class="layer-name"></span>
+                ${available ? '' : '<span class="badge">Coming soon</span>'}
+            </div>
+            <label class="switch" title="Show / hide">
+                <input type="checkbox">
+                <span class="switch-track"></span>
+            </label>
+        </div>
+        <p class="layer-desc"></p>
+        <div class="layer-opacity">
+            <span>Visibility</span>
+            <input type="range" min="0" max="1" step="0.05">
+            <output></output>
+        </div>`;
+    card.querySelector('.layer-icon').textContent = layer.icon;
+    card.querySelector('.layer-name').textContent = layer.name;
+    card.querySelector('.layer-desc').textContent = layer.description;
+    card.querySelector('.switch input').setAttribute('aria-label', `Show ${layer.name}`);
+    card.querySelector('input[type="range"]').setAttribute('aria-label', `${layer.name} visibility`);
+
+    if (layer.legend)
+    {
+        const legend = document.createElement('ul');
+        legend.className = 'legend';
+        layer.legend.forEach(([color, label]) =>
+        {
+            const item = document.createElement('li');
+            const swatch = document.createElement('i');
+            swatch.style.background = color;
+            item.append(swatch, label);
+            legend.append(item);
+        });
+        card.append(legend);
+    }
+    if (layer.details)
+    {
+        const details = document.createElement('p');
+        details.className = 'layer-details';
+        details.textContent = layer.details;
+        card.append(details);
+    }
+
+    const toggle = card.querySelector('.switch input');
+    const slider = card.querySelector('input[type="range"]');
+    const value = card.querySelector('output');
+    toggle.checked = available && layer.enabled;
+    toggle.disabled = !available;
+    slider.value = layer.opacity;
+
+    const update = () =>
+    {
+        const on = toggle.checked;
+        slider.disabled = !on;
+        card.classList.toggle('layer--off', !on);
+        value.textContent = `${Math.round(Number(slider.value) * 100)}%`;
+        if (layer.mesh)
+        {
+            layer.mesh.visible = on;
+            layer.material.opacity = Number(slider.value);
+            requestRender();
+        }
+    };
+    toggle.addEventListener('change', update);
+    slider.addEventListener('input', update);
+    update();
+
+    layerList.append(card);
+});
+
+// Collapse / expand the panel (starts collapsed on small screens)
+const panel = document.querySelector('.panel');
+const panelToggle = document.querySelector('.panel-collapse');
+const setCollapsed = (collapsed) =>
+{
+    panel.classList.toggle('panel--collapsed', collapsed);
+    panelToggle.setAttribute('aria-expanded', String(!collapsed));
+    panelToggle.textContent = collapsed ? '▸' : '▾';
+};
+panelToggle.addEventListener('click', () => setCollapsed(!panel.classList.contains('panel--collapsed')));
+setCollapsed(window.matchMedia('(max-width: 600px)').matches);
 
 // ---------------------------------------------------------------------------
 // Atmosphere glow: a camera-facing ring around the globe's silhouette.
@@ -306,6 +431,41 @@ controls.minDistance = 1.05; // ~320 km above the surface (Earth radius = 1)
 controls.maxDistance = 10;
 controls.addEventListener('change', requestRender);
 
+// "Reset view": fly back to the start position (direction and distance) with ease in-out
+const RESET_DURATION = 900; // ms
+let resetAnimation = null;
+const startReset = () =>
+{
+    resetAnimation = {
+        start: performance.now(),
+        fromDir: camera.position.clone().normalize(),
+        toDir: HOME_POSITION.clone().normalize(),
+        fromDist: camera.position.length(),
+        toDist: HOME_POSITION.length(),
+    };
+    resetAnimation.rotation = new THREE.Quaternion().setFromUnitVectors(resetAnimation.fromDir, resetAnimation.toDir);
+    controls.enabled = false;
+    requestRender();
+};
+const stepReset = (now) =>
+{
+    const a = resetAnimation;
+    const t = Math.min(1, (now - a.start) / RESET_DURATION);
+    const k = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+    const dir = a.fromDir.clone().applyQuaternion(new THREE.Quaternion().slerp(a.rotation, k));
+    camera.position.copy(dir.multiplyScalar(THREE.MathUtils.lerp(a.fromDist, a.toDist, k)));
+    camera.up.set(0, 1, 0);             // north up again
+    camera.lookAt(controls.target);
+    if (t >= 1)
+    {
+        resetAnimation = null;
+        controls.enabled = true;
+        controls.update();
+    }
+    requestRender();
+};
+document.querySelector('.reset-view').addEventListener('click', startReset);
+
 // Slow down rotation/zoom near the surface so close-up navigation stays controllable
 const updateControlSpeed = () =>
 {
@@ -352,9 +512,10 @@ window.addEventListener('dblclick', () =>
 // ---------------------------------------------------------------------------
 // Loop: controls are updated every frame (for damping), rendering only on change
 // ---------------------------------------------------------------------------
-const tick = () =>
+const tick = (now = performance.now()) =>
 {
-    controls.update(); // fires 'change' while the camera is still moving
+    if (resetAnimation) stepReset(now);
+    else controls.update(); // fires 'change' while the camera is still moving
 
     if (needsRender)
     {
