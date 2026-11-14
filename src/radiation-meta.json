@@ -39,13 +39,15 @@
     ]
   },
   "stats": {
-    "readingsUsed": 158468752,
+    "readingsUsed": 157878799,
     "rowsRead": 269537292,
     "airborneReadingsDropped": 1669149,
-    "cellsWithData": 6779,
-    "earthSurfaceCoveredPercent": 2.95,
-    "medianUSvH": 0.104,
-    "p95USvH": 2.028,
-    "maxCellUSvH": 3.9
+    "highReadingsDroppedOutsideHotspots": 795442,
+    "oceanCellsDropped": 403,
+    "cellsWithData": 5870,
+    "earthSurfaceCoveredPercent": 2.55,
+    "medianUSvH": 0.103,
+    "p95USvH": 0.157,
+    "maxCellUSvH": 0.981
   }
 }
