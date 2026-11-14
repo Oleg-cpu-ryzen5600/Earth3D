@@ -3,7 +3,7 @@
 Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/) — standard materials only, no custom shaders.
 
 - Evenly lit globe (no day/night cycle)
-- **NISAR SAR layer**: L-band GCOV false-colour backscatter, 24-day global composite baked from NASA GIBS; toggle + opacity slider
+- **Multi-sensor SAR layer**: NISAR L-band + Sentinel-1 C-band backscatter fused into one global composite (NISAR colour scale), baked from NASA GIBS; toggle + opacity slider
 - Atmosphere glow: a camera-facing ring around the silhouette with per-vertex alpha
 - 23.5° axial tilt, no automatic rotation — the globe moves only with the user
 - Orbit camera: drag to rotate, scroll to zoom down to ~300 km above the surface (controls slow down near the surface)
@@ -47,7 +47,7 @@ src/
   textures/
     earth_day.webp   # surface colour
     sar.webp         # SAR overlay (with alpha), generated
-  sar-meta.json      # layer + date range of sar.webp, generated
+  sar-meta.json      # sources, dates and fusion stats of sar.webp, generated
 scripts/
   bake_sar.py        # builds sar.webp from NASA GIBS
 vercel.json          # cache headers for hashed assets
@@ -55,16 +55,34 @@ vercel.json          # cache headers for hashed assets
 
 ## SAR data
 
-The overlay is a composite of 24 daily `NISAR_L2_Geocoded_Polarimetric_Covariance` layers from
-[NASA GIBS](https://www.earthdata.nasa.gov/gibs) (WMS, EPSG:4326, 4096×2048), encoded as WebP with alpha.
-Single days only cover narrow swaths, so the bake script:
+The overlay is a **multi-sensor composite** baked from [NASA GIBS](https://www.earthdata.nasa.gov/gibs)
+(WMS, EPSG:4326, 4096×2048), encoded as WebP with alpha. Relying on a single satellite is not robust
+(narrow swaths, gaps, radio-frequency interference), so several sources are combined:
 
-- erodes every daily swath by 2 px (swath edges are dark and noisy),
-- takes the per-pixel **median** of all valid days (hides seams between passes and one-off RFI streaks),
-- clips the result to land and ice sheets with GIBS `OSM_Land_Mask` (SAR over open water is near-black
-  and shows up as blocky swath patches).
+| Source | GIBS layer | Role |
+|---|---|---|
+| NISAR L-band GCOV (NASA-ISRO), 36 days | `NISAR_L2_Geocoded_Polarimetric_Covariance` | primary signal (R = HH, G = HV, B = HH/HV) |
+| Sentinel-1 C-band RTC (ESA / NASA OPERA), 24 days | `OPERA_L2_Radiometric_Terrain_Corrected_SAR_Sentinel-1` | independent cross-check, RFI replacement, gap fill |
+| MODIS IGBP land cover | `MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual` | reference classes for harmonisation |
+| OSM land mask | `OSM_Land_Mask` | clip to land and ice sheets |
 
-To refresh it: **Actions → Bake SAR texture → Run workflow** (optionally set the last day and number of days).
+`scripts/bake_sar.py`:
+
+1. **Clean composite per sensor** — every daily swath is eroded by 2 px (noisy edges) and each pixel
+   is the per-channel **median** of all valid days.
+2. **Harmonisation to one scale** — for every land-cover class a robust (iteratively trimmed)
+   linear colour mapping Sentinel-1 → NISAR is fitted on pixels observed by both sensors.
+3. **Cross-sensor consistency check** — NISAR pixels with a strong HV excess and HH deficit relative to
+   the Sentinel-1 prediction (typical L-band RFI signature) are flagged; areas where many pixels are
+   flagged are replaced by harmonised Sentinel-1 with a soft transition.
+4. **Gap filling** — land without NISAR data gets harmonised Sentinel-1.
+5. Clip to land/ice, write `sar.webp` and `sar-meta.json` (dates, sources, share of each sensor,
+   agreement statistics).
+
+Note: GIBS serves visualised (false-colour) imagery, so the harmonisation is a colour-scale
+alignment of the two sensors, not a radiometric (σ⁰) calibration.
+
+To refresh it: **Actions → Bake SAR texture → Run workflow** (recommended *days* = 36, i.e. three NISAR 12-day cycles).
 The workflow runs `scripts/bake_sar.py`, commits `src/textures/sar.webp` + `src/sar-meta.json` and redeploys.
 Locally: `pip install pillow numpy && python scripts/bake_sar.py`.
 

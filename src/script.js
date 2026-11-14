@@ -104,8 +104,10 @@ const updateSar = () =>
     sarOpacity.disabled = !sarToggle.checked;
     requestRender();
 };
+const sarStats = sarMeta.stats;
 document.querySelector('#sar-period').textContent =
-    `${sarMeta.days}-day composite · ${sarMeta.start} – ${sarMeta.end}`;
+    `${sarMeta.start} – ${sarMeta.end}` +
+    (sarStats ? ` · NISAR ${sarStats.nisarSharePercent}% / Sentinel-1 ${sarStats.sentinel1SharePercent}%` : '');
 sarToggle.addEventListener('change', updateSar);
 sarOpacity.addEventListener('input', updateSar);
 updateSar();
