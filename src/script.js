@@ -104,7 +104,7 @@ const createStars = () =>
     const ctx = spriteCanvas.getContext('2d');
     const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
     gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+    gradient.addColorStop(0.4, 'rgba(255,255,255,0.8)');
     gradient.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 32, 32);
@@ -113,9 +113,9 @@ const createStars = () =>
 
     const STAR_RADIUS = 60;          // well inside the camera's far plane (100)
     const groups = [
-        { count: 2600, size: 1.6, brightness: [0.35, 0.7] },   // faint
-        { count: 700,  size: 2.4, brightness: [0.6, 0.95] },   // medium
-        { count: 120,  size: 3.4, brightness: [0.9, 1.0] },    // bright
+        { count: 2600, size: 1.9, brightness: [0.55, 0.85] },  // faint
+        { count: 700,  size: 2.8, brightness: [0.8, 1.0] },    // medium
+        { count: 120,  size: 3.8, brightness: [1.0, 1.0] },    // bright
     ];
     const tints = [[1, 1, 1], [0.8, 0.88, 1], [1, 0.93, 0.82], [1, 0.85, 0.7]]; // white, blue-white, yellow, orange
 
