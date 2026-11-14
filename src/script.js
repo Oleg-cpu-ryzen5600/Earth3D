@@ -154,6 +154,54 @@ const createStars = () =>
 scene.add(createStars());
 
 // ---------------------------------------------------------------------------
+// Distant Sun: a glowing sprite far behind the globe, slightly off to the
+// upper right of the start view. Decorative only (the Earth stays evenly lit).
+// ---------------------------------------------------------------------------
+const createSun = () =>
+{
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const c = size / 2;
+    // wide soft glow
+    const glow = ctx.createRadialGradient(c, c, 0, c, c, c);
+    glow.addColorStop(0, 'rgba(255, 244, 214, 1)');
+    glow.addColorStop(0.08, 'rgba(255, 236, 180, 1)');
+    glow.addColorStop(0.18, 'rgba(255, 200, 110, 0.45)');
+    glow.addColorStop(0.45, 'rgba(255, 160, 60, 0.12)');
+    glow.addColorStop(1, 'rgba(255, 140, 40, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, size, size);
+    // bright disc
+    ctx.beginPath();
+    ctx.arc(c, c, size * 0.05, 0, Math.PI * 2);
+    ctx.fillStyle = '#fffaf0';
+    ctx.fill();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sun = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: texture,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthWrite: false,       // depth test stays on: the globe hides the Sun when it is in front
+    }));
+
+    // Direction: behind the globe as seen from the start view, up and to the right
+    const forward = HOME_POSITION.clone().negate().normalize();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+    const direction = forward.add(right.multiplyScalar(0.3)).add(up.multiplyScalar(0.22)).normalize();
+
+    sun.position.copy(direction.multiplyScalar(55));   // in front of the star sphere (60)
+    sun.scale.setScalar(14);
+    sun.renderOrder = 0;
+    return sun;
+};
+scene.add(createSun());
+
+// ---------------------------------------------------------------------------
 // Globe (tilted group)
 // ---------------------------------------------------------------------------
 const globe = new THREE.Group();
