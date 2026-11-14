@@ -6,6 +6,7 @@
   "days": 24,
   "width": 4096,
   "height": 2048,
-  "coveragePercent": 50.7,
+  "coveragePercent": 29.9,
+  "method": "median of valid days, swath edges eroded, land mask (OSM_Land_Mask)",
   "source": "NASA GIBS"
 }
