@@ -310,6 +310,214 @@ const updateLod = () =>
 };
 
 // ---------------------------------------------------------------------------
+// Close-up detail: streamed map tiles (like online maps)
+// A single 16K / 32K texture would need 0.7-3 GB of GPU memory and exceeds the
+// WebGL size limit on most devices. Instead, when the 8K base map is no longer
+// sharp enough, 512 px tiles of NASA GIBS Blue Marble (WMTS, EPSG:4326) are
+// loaded only for the part of the globe that is on screen:
+//   level 5 ~ 20K, level 6 ~ 40K, level 7 ~ 80K equivalent (~500 m per pixel).
+// Each tile is a small sphere patch drawn just above the base map and below the
+// data layers. Loaded tiles are cached (LRU) and the least recently used freed.
+// ---------------------------------------------------------------------------
+const TILE_URL = (z, y, x) =>
+    `https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief_Bathymetry/default/500m/${z}/${y}/${x}.jpeg`;
+const TILE_MIN_LEVEL = 5;
+const TILE_MAX_LEVEL = 7;
+const TILE_PX = 512;
+const tileSpan = (z) => 288 / 2 ** z;                    // degrees per tile (GIBS 500m matrix set)
+const tileEquivalentWidth = (z) => (360 / tileSpan(z)) * TILE_PX;
+const TILE_MAX_VISIBLE = 80;                             // per level
+const TILE_CACHE_SIZE = 220;
+const TILE_PARALLEL = 6;
+const TILE_SEGMENTS = 12;
+
+const tileGroup = new THREE.Group();
+globe.add(tileGroup);
+const tileLoader = new THREE.TextureLoader();
+tileLoader.setCrossOrigin('anonymous');
+const tiles = new Map();                                 // key -> { z, y, x, mesh, state, used }
+const tileQueue = [];
+let tilesLoading = 0;
+let tileLevel = 0;                                       // 0 = tiles off
+let tileFrame = 0;
+
+// Sub-camera point (lat/lon on the untilted globe) and the visible angular radius
+const viewCap = () =>
+{
+    const local = globe.worldToLocal(camera.position.clone());
+    const distance = local.length();
+    const dir = local.normalize();
+    const lat = THREE.MathUtils.radToDeg(Math.asin(dir.y));
+    let lon = THREE.MathUtils.radToDeg(Math.atan2(dir.z, -dir.x)) - 180;
+    if (lon < -180) lon += 360;
+    // angle on the sphere hit by the ray at the corner of the view, capped by the horizon
+    const halfDiag = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.hypot(1, camera.aspect));
+    const s = distance * Math.sin(halfDiag);
+    const horizon = Math.acos(1 / distance);
+    const radius = s < 1 ? Math.min(horizon, Math.asin(s) - halfDiag) : horizon;
+    return { lat, lon, radius: THREE.MathUtils.radToDeg(radius) * 1.15 + 1 };
+};
+
+const createTileMesh = (z, y, x, texture) =>
+{
+    const span = tileSpan(z);
+    const lon0 = -180 + x * span;
+    const lat0 = 90 - y * span;                          // north edge
+    const geometry = new THREE.SphereGeometry(
+        EARTH_RADIUS, TILE_SEGMENTS, TILE_SEGMENTS,
+        THREE.MathUtils.degToRad(lon0 + 180), THREE.MathUtils.degToRad(span),
+        THREE.MathUtils.degToRad(90 - lat0), THREE.MathUtils.degToRad(span),
+    );
+    const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        polygonOffset: true,                             // above the base map, below the data layers
+        polygonOffsetFactor: -0.2 - z * 0.05,
+        polygonOffsetUnits: -0.2 - z * 0.05,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.renderOrder = -1 + z * 0.01;
+    return mesh;
+};
+
+const pumpTileQueue = () =>
+{
+    while (tilesLoading < TILE_PARALLEL && tileQueue.length)
+    {
+        const tile = tileQueue.shift();
+        if (tile.state !== 'queued') continue;
+        tile.state = 'loading';
+        tilesLoading++;
+        tileLoader.load(TILE_URL(tile.z, tile.y, tile.x), (texture) =>
+        {
+            tilesLoading--;
+            if (tile.state !== 'loading') { texture.dispose(); pumpTileQueue(); return; }
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.anisotropy = maxAnisotropy;
+            texture.generateMipmaps = false;             // tiles are shown close to 1:1, saves upload time
+            texture.minFilter = THREE.LinearFilter;
+            tile.mesh = createTileMesh(tile.z, tile.y, tile.x, texture);
+            tile.mesh.visible = tile.wanted;
+            tileGroup.add(tile.mesh);
+            tile.state = 'ready';
+            requestRender();
+            pumpTileQueue();
+        }, undefined, () =>
+        {
+            tilesLoading--;
+            tile.state = 'failed';
+            pumpTileQueue();
+        });
+    }
+};
+
+const disposeTile = (key, tile) =>
+{
+    if (tile.mesh)
+    {
+        tileGroup.remove(tile.mesh);
+        tile.mesh.geometry.dispose();
+        tile.mesh.material.map?.dispose();
+        tile.mesh.material.dispose();
+    }
+    tile.state = 'disposed';
+    tiles.delete(key);
+};
+
+const updateTiles = () =>
+{
+    tileFrame++;
+    const need = texelsNeeded();
+    const base = LOD_LEVELS[LOD_LEVELS.length - 1].width;
+    let level = 0;
+    if (need > base * 1.1)
+    {
+        level = TILE_MIN_LEVEL;
+        while (level < TILE_MAX_LEVEL && tileEquivalentWidth(level) < need) level++;
+    }
+    tileLevel = level;
+    tiles.forEach((tile) => { tile.wanted = false; });
+
+    if (level)
+    {
+        const cap = viewCap();
+        // wanted: tiles of the current level plus the two coarser tile levels as fallback while loading
+        for (let z = Math.max(TILE_MIN_LEVEL, level - 2); z <= level; z++)
+        {
+            const span = tileSpan(z);
+            const latMin = Math.max(-90, cap.lat - cap.radius);
+            const latMax = Math.min(90, cap.lat + cap.radius);
+            const nearPole = latMax > 89 || latMin < -89;
+            const lonHalf = nearPole ? 180 : Math.min(180, cap.radius / Math.max(0.05, Math.cos(THREE.MathUtils.degToRad(
+                Math.max(Math.abs(latMin), Math.abs(latMax))))));
+            const yMin = Math.max(0, Math.floor((90 - latMax) / span));
+            const yMax = Math.min(180 / span - 1, Math.floor((90 - latMin) / span));
+            const cols = 360 / span;
+            const xFrom = Math.floor((cap.lon - lonHalf + 180) / span);
+            const xTo = Math.floor((cap.lon + lonHalf + 180) / span);
+            const list = [];
+            for (let y = yMin; y <= yMax; y++)
+            {
+                for (let xi = xFrom; xi <= Math.min(xTo, xFrom + cols - 1); xi++)
+                {
+                    const x = ((xi % cols) + cols) % cols;
+                    const cLat = 90 - (y + 0.5) * span;
+                    const cLon = -180 + (x + 0.5) * span;
+                    const dLon = ((cLon - cap.lon + 540) % 360) - 180;
+                    list.push({ y, x, d: Math.hypot(cLat - cap.lat, dLon * Math.cos(THREE.MathUtils.degToRad(cLat))) });
+                }
+            }
+            list.sort((a, b) => a.d - b.d);
+            list.slice(0, TILE_MAX_VISIBLE).forEach(({ y, x }) =>
+            {
+                const key = `${z}/${y}/${x}`;
+                let tile = tiles.get(key);
+                if (!tile)
+                {
+                    tile = { z, y, x, mesh: null, state: 'queued' };
+                    tiles.set(key, tile);
+                    tileQueue.push(tile);
+                }
+                else if (tile.state === 'failed' || tile.state === 'disposed')
+                {
+                    return;
+                }
+                tile.wanted = true;
+                tile.used = tileFrame;
+            });
+        }
+        // load the current level first, nearest tiles first (queue order = insertion order by distance)
+        tileQueue.sort((a, b) => (b.z === level) - (a.z === level));
+    }
+
+    // drop queued tiles that are no longer needed, show/hide ready ones
+    for (let i = tileQueue.length - 1; i >= 0; i--)
+    {
+        if (!tileQueue[i].wanted) { tileQueue[i].state = 'dropped'; tiles.delete(`${tileQueue[i].z}/${tileQueue[i].y}/${tileQueue[i].x}`); tileQueue.splice(i, 1); }
+    }
+    tiles.forEach((tile) => { if (tile.mesh) tile.mesh.visible = tile.wanted; });
+    if (tiles.size > TILE_CACHE_SIZE)
+    {
+        [...tiles.entries()]
+            .filter(([, t]) => !t.wanted && t.state === 'ready')
+            .sort((a, b) => a[1].used - b[1].used)
+            .slice(0, tiles.size - TILE_CACHE_SIZE)
+            .forEach(([key, t]) => disposeTile(key, t));
+    }
+    pumpTileQueue();
+
+    if (lodLabel && level)
+    {
+        const pending = tileQueue.length + tilesLoading;
+        lodLabel.textContent = `Map detail: ~${Math.round(tileEquivalentWidth(level) / 1024)}K (live tiles)`
+            + (pending ? ` · loading ${pending}` : '');
+    }
+    else if (lodLabel && lodLabel.textContent.includes('tiles'))
+    {
+        lodLabel.textContent = `Map detail: ${LOD_LEVELS[lodCurrent].label}`;
+    }
+};
+
+// ---------------------------------------------------------------------------
 // Data layers
 // Each layer is a transparent copy of the globe drawn on top of the surface.
 // To add data for a layer, set `url` to its texture (equirectangular, with alpha):
@@ -715,6 +923,7 @@ const tick = (now = performance.now()) =>
         updateControlSpeed();
         updateAtmosphere();
         updateLod();
+        updateTiles();
         renderer.render(scene, camera);
     }
 
