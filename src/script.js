@@ -89,6 +89,71 @@ const loadTexture = (url, isColor) =>
 const earthBaseTexture = loadTexture(earth2kUrl, true);
 
 // ---------------------------------------------------------------------------
+// Starry background: static points on a large sphere around the scene.
+// Seeded random, so the sky is the same on every visit; no animation.
+// Three groups of different size give bright, medium and faint stars.
+// ---------------------------------------------------------------------------
+const createStars = () =>
+{
+    let seed = 20261114;
+    const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+
+    // Soft round dot used as the sprite of every star
+    const spriteCanvas = document.createElement('canvas');
+    spriteCanvas.width = spriteCanvas.height = 32;
+    const ctx = spriteCanvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 32, 32);
+    const sprite = new THREE.CanvasTexture(spriteCanvas);
+    sprite.colorSpace = THREE.SRGBColorSpace;
+
+    const STAR_RADIUS = 60;          // well inside the camera's far plane (100)
+    const groups = [
+        { count: 2600, size: 1.6, brightness: [0.35, 0.7] },   // faint
+        { count: 700,  size: 2.4, brightness: [0.6, 0.95] },   // medium
+        { count: 120,  size: 3.4, brightness: [0.9, 1.0] },    // bright
+    ];
+    const tints = [[1, 1, 1], [0.8, 0.88, 1], [1, 0.93, 0.82], [1, 0.85, 0.7]]; // white, blue-white, yellow, orange
+
+    const stars = new THREE.Group();
+    groups.forEach(({ count, size, brightness }) =>
+    {
+        const positions = new Float32Array(count * 3);
+        const colors = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++)
+        {
+            // uniform direction on the sphere
+            const z = random() * 2 - 1;
+            const a = random() * Math.PI * 2;
+            const r = Math.sqrt(1 - z * z);
+            positions.set([r * Math.cos(a) * STAR_RADIUS, z * STAR_RADIUS, r * Math.sin(a) * STAR_RADIUS], i * 3);
+
+            const tint = tints[Math.floor(random() * tints.length)];
+            const b = brightness[0] + random() * (brightness[1] - brightness[0]);
+            colors.set([tint[0] * b, tint[1] * b, tint[2] * b], i * 3);
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        stars.add(new THREE.Points(geometry, new THREE.PointsMaterial({
+            size: size * renderer.getPixelRatio(),
+            sizeAttenuation: false,  // size in screen pixels, independent of zoom
+            map: sprite,
+            vertexColors: true,
+            transparent: true,
+            depthWrite: false,
+        })));
+    });
+    stars.renderOrder = -1;          // behind everything else
+    return stars;
+};
+scene.add(createStars());
+
+// ---------------------------------------------------------------------------
 // Globe (tilted group)
 // ---------------------------------------------------------------------------
 const globe = new THREE.Group();
