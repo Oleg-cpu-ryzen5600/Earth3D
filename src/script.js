@@ -8,7 +8,7 @@ import cloudsUrl from './textures/clouds.webp';
 // ---------------------------------------------------------------------------
 const EARTH_RADIUS = 1;
 const CLOUDS_RADIUS = 1.003;      // ~20 km above the surface
-const ATMOSPHERE_RADIUS = 1.03;   // outer edge of the glow
+const ATMOSPHERE_RADIUS = 1.06;   // outer edge of the glow
 const ATMOSPHERE_COLOR = new THREE.Color(0x9fd8ff);
 const SEGMENTS = 128;             // smooth horizon when zoomed in close
 
@@ -96,31 +96,44 @@ globe.add(clouds);
 // ---------------------------------------------------------------------------
 // Atmosphere glow: a camera-facing ring around the globe's silhouette.
 // Plain geometry with per-vertex alpha, no custom shaders.
+//  - inner part overlaps the Earth's edge (haze over the limb)
+//  - outer part fades out into space
 // ---------------------------------------------------------------------------
 const RING_SEGMENTS = 128;
-const RING_STEPS = 8; // radial steps of the fade-out
+const INNER_STEPS = 6;
+const OUTER_STEPS = 10;
+const INNER_START = 0.9;  // haze starts at 90% of the silhouette radius
+const PEAK_ALPHA = 0.75;  // brightest right at the silhouette
+
+// Radial profile: { zone, t } per ring of vertices
+const ringProfile = [];
+for (let i = 0; i <= INNER_STEPS; i++) ringProfile.push({ zone: 'inner', t: i / INNER_STEPS });
+for (let i = 1; i <= OUTER_STEPS; i++) ringProfile.push({ zone: 'outer', t: i / OUTER_STEPS });
 
 const ringGeometry = new THREE.BufferGeometry();
-const ringPositions = new Float32Array((RING_STEPS + 1) * (RING_SEGMENTS + 1) * 3);
-const ringColors = new Float32Array((RING_STEPS + 1) * (RING_SEGMENTS + 1) * 4);
+const vertexCount = ringProfile.length * (RING_SEGMENTS + 1);
+const ringPositions = new Float32Array(vertexCount * 3);
+const ringColors = new Float32Array(vertexCount * 4);
 const ringIndices = [];
 
-for (let step = 0; step <= RING_STEPS; step++)
+ringProfile.forEach(({ zone, t }, step) =>
 {
-    const t = step / RING_STEPS;
-    const alpha = 0.85 * (1 - t) * (1 - t);
+    const alpha = zone === 'inner'
+        ? PEAK_ALPHA * t * t * t              // fades in towards the edge
+        : PEAK_ALPHA * (1 - t) * (1 - t);     // fades out into space
+
     for (let i = 0; i <= RING_SEGMENTS; i++)
     {
         const v = step * (RING_SEGMENTS + 1) + i;
         ringColors.set([ATMOSPHERE_COLOR.r, ATMOSPHERE_COLOR.g, ATMOSPHERE_COLOR.b, alpha], v * 4);
 
-        if (step < RING_STEPS && i < RING_SEGMENTS)
+        if (step < ringProfile.length - 1 && i < RING_SEGMENTS)
         {
             const next = v + RING_SEGMENTS + 1;
             ringIndices.push(v, next, v + 1, v + 1, next, next + 1);
         }
     }
-}
+});
 
 ringGeometry.setAttribute('position', new THREE.BufferAttribute(ringPositions, 3));
 ringGeometry.setAttribute('color', new THREE.BufferAttribute(ringColors, 4));
@@ -132,11 +145,13 @@ const atmosphere = new THREE.Mesh(
         vertexColors: true,
         transparent: true,
         depthWrite: false,
+        depthTest: false,          // drawn as an overlay on top of the globe's edge
         blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide,
     })
 );
 atmosphere.frustumCulled = false;
+atmosphere.renderOrder = 1;
 scene.add(atmosphere);
 
 // Radius (in the plane through the globe centre) where the view cone touches a sphere
@@ -146,12 +161,16 @@ const silhouetteRadius = (sphereRadius, distance) =>
 const updateAtmosphere = () =>
 {
     const distance = camera.position.length();
-    const inner = silhouetteRadius(EARTH_RADIUS, distance) * 0.99; // hidden under the Earth's edge
+    const edge = silhouetteRadius(EARTH_RADIUS, distance);
+    const inner = edge * INNER_START;
     const outer = silhouetteRadius(ATMOSPHERE_RADIUS, distance);
 
-    for (let step = 0; step <= RING_STEPS; step++)
+    ringProfile.forEach(({ zone, t }, step) =>
     {
-        const radius = inner + (outer - inner) * (step / RING_STEPS);
+        const radius = zone === 'inner'
+            ? inner + (edge - inner) * t
+            : edge + (outer - edge) * t;
+
         for (let i = 0; i <= RING_SEGMENTS; i++)
         {
             const angle = (i / RING_SEGMENTS) * Math.PI * 2;
@@ -160,7 +179,7 @@ const updateAtmosphere = () =>
             ringPositions[v + 1] = Math.sin(angle) * radius;
             ringPositions[v + 2] = 0;
         }
-    }
+    });
     ringGeometry.attributes.position.needsUpdate = true;
 
     // Face the camera (the camera always looks at the globe centre)
