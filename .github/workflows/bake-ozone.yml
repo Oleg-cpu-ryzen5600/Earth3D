@@ -1,0 +1,52 @@
+name: Bake ozone texture
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Number of latest daily OMI files to average"
+        required: false
+        default: "5"
+
+permissions:
+  contents: write
+  actions: write   # to trigger the Pages deploy after committing
+
+concurrency:
+  group: bake-ozone
+  cancel-in-progress: false
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pillow numpy h5py requests
+
+      - name: Bake ozone composite from NASA GES DISC (OMTO3d)
+        env:
+          EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
+        run: python scripts/bake_ozone.py --days "${{ inputs.days }}"
+
+      - name: Commit texture
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/textures/ozone.webp src/ozone-meta.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          RANGE=$(python -c "import json;m=json.load(open('src/ozone-meta.json'));print(m['start'],'..',m['end'])")
+          git commit -m "Bake ozone texture: $RANGE"
+          git push
+
+      - name: Redeploy GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main --repo "${{ github.repository }}"
