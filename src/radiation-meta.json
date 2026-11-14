@@ -3,7 +3,7 @@
   "source": "Safecast (CC0)",
   "url": "https://api.safecast.org/system/measurements.tar.gz",
   "start": "2018-01-01",
-  "end": "6017-02-17",
+  "end": "2026-11-14",
   "since": "2018-01-01",
   "unit": "µSv/h",
   "cellDegrees": 0.5,
@@ -39,12 +39,13 @@
     ]
   },
   "stats": {
-    "readingsUsed": 159050563,
+    "readingsUsed": 158468752,
     "rowsRead": 269537292,
-    "cellsWithData": 13096,
-    "earthSurfaceCoveredPercent": 5.57,
-    "medianUSvH": 0.944,
-    "p95USvH": 3.438,
-    "maxCellUSvH": 4.413
+    "airborneReadingsDropped": 1669149,
+    "cellsWithData": 6779,
+    "earthSurfaceCoveredPercent": 2.95,
+    "medianUSvH": 0.104,
+    "p95USvH": 2.028,
+    "maxCellUSvH": 3.9
   }
 }
