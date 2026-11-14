@@ -56,12 +56,17 @@ vercel.json          # cache headers for hashed assets
 ## SAR data
 
 The overlay is a composite of 24 daily `NISAR_L2_Geocoded_Polarimetric_Covariance` layers from
-[NASA GIBS](https://www.earthdata.nasa.gov/gibs) (WMS, EPSG:4326, 4096×2048), newest day on top,
-encoded as WebP with alpha. Single days only cover narrow swaths; 24 days cover ~51% of the map (practically all land and ice sheets).
+[NASA GIBS](https://www.earthdata.nasa.gov/gibs) (WMS, EPSG:4326, 4096×2048), encoded as WebP with alpha.
+Single days only cover narrow swaths, so the bake script:
+
+- erodes every daily swath by 2 px (swath edges are dark and noisy),
+- takes the per-pixel **median** of all valid days (hides seams between passes and one-off RFI streaks),
+- clips the result to land and ice sheets with GIBS `OSM_Land_Mask` (SAR over open water is near-black
+  and shows up as blocky swath patches).
 
 To refresh it: **Actions → Bake SAR texture → Run workflow** (optionally set the last day and number of days).
 The workflow runs `scripts/bake_sar.py`, commits `src/textures/sar.webp` + `src/sar-meta.json` and redeploys.
-Locally: `pip install pillow && python scripts/bake_sar.py`.
+Locally: `pip install pillow numpy && python scripts/bake_sar.py`.
 
 We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS).
 
