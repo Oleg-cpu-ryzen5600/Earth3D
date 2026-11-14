@@ -1,0 +1,50 @@
+{
+  "title": "Total column ozone (OMI/Aura OMTO3d V004)",
+  "source": "NASA GES DISC",
+  "collection": "C3377057241-GES_DISC",
+  "start": "2026-11-08",
+  "end": "2026-11-12",
+  "days": 5,
+  "unit": "DU",
+  "scale": {
+    "min": 150.0,
+    "max": 500.0,
+    "stops": [
+      [
+        150,
+        "#561e82"
+      ],
+      [
+        220,
+        "#2846c8"
+      ],
+      [
+        280,
+        "#28aadc"
+      ],
+      [
+        330,
+        "#3cc86e"
+      ],
+      [
+        380,
+        "#f0dc3c"
+      ],
+      [
+        440,
+        "#f58228"
+      ],
+      [
+        500,
+        "#c82828"
+      ]
+    ]
+  },
+  "stats": {
+    "globalMeanDU": 280.5,
+    "minDU": 155.7,
+    "maxDU": 469.0,
+    "areaBelow220DUPercent": 3.48,
+    "coveragePercent": 87.8
+  }
+}
