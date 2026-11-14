@@ -322,7 +322,7 @@ const DATA_LAYERS = [
             + (sarStats ? ` (${sarStats.nisarSharePercent}% / ${sarStats.sentinel1SharePercent}%)` : ''),
         legend: [
             ['#3bd16f', 'Vegetation'],
-            ['#d65a8c', 'Cities, rock'],
+            ['#e8a030', 'Cities, rock'],
             ['#4a6fd6', 'Smooth or wet ground'],
         ],
     },
