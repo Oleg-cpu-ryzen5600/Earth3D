@@ -244,13 +244,13 @@ let lodWanted = 0;
 
 const texelsNeeded = () =>
 {
-    // projected radius of the globe in device pixels
-    const distance = camera.position.length();
-    const angularRadius = Math.asin(Math.min(1, EARTH_RADIUS / distance));
+    // Size of one screen pixel on the ground at the centre of the view: the camera is
+    // `altitude` Earth radii above the surface and one pixel spans 2*tan(fov/2)/height radians.
+    // Texture width needed for ~1 texel per pixel there = 2*pi / (ground radians per pixel).
+    const altitude = Math.max(1e-4, camera.position.length() - EARTH_RADIUS);
     const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
-    const radiusPx = (Math.tan(angularRadius) / Math.tan(halfFov)) * renderer.domElement.height / 2;
-    // around the centre of the disc 1 radian of longitude ~ radiusPx pixels -> full texture width = 2*pi*radiusPx
-    return 2 * Math.PI * radiusPx * LOD_TEXEL_RATIO;
+    const groundPerPixel = (altitude * 2 * Math.tan(halfFov)) / renderer.domElement.height;
+    return ((2 * Math.PI) / groundPerPixel) * LOD_TEXEL_RATIO;
 };
 
 const showLod = (index) =>
