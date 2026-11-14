@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import earthDayUrl from './textures/earth_day.webp';
+// SAR composite baked from NASA GIBS by scripts/bake_sar.py (GitHub Actions: "Bake SAR texture")
+import sarUrl from './textures/sar.webp';
+import sarMeta from './sar-meta.json';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -63,6 +66,7 @@ const loadTexture = (url, isColor) =>
 };
 
 const earthDayTexture = loadTexture(earthDayUrl, true);
+const sarTexture = loadTexture(sarUrl, true);
 
 // ---------------------------------------------------------------------------
 // Globe (tilted group)
@@ -77,6 +81,34 @@ const earth = new THREE.Mesh(
     new THREE.MeshBasicMaterial({ map: earthDayTexture })
 );
 globe.add(earth);
+
+// SAR overlay: same sphere geometry, drawn on top of the surface (polygon offset avoids z-fighting)
+const sarMaterial = new THREE.MeshBasicMaterial({
+    map: sarTexture,
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+});
+const sar = new THREE.Mesh(earth.geometry, sarMaterial);
+globe.add(sar);
+
+// UI: toggle + opacity
+const sarToggle = document.querySelector('#sar-toggle');
+const sarOpacity = document.querySelector('#sar-opacity');
+const updateSar = () =>
+{
+    sar.visible = sarToggle.checked;
+    sarMaterial.opacity = Number(sarOpacity.value);
+    sarOpacity.disabled = !sarToggle.checked;
+    requestRender();
+};
+document.querySelector('#sar-period').textContent =
+    `${sarMeta.days}-day composite · ${sarMeta.start} – ${sarMeta.end}`;
+sarToggle.addEventListener('change', updateSar);
+sarOpacity.addEventListener('input', updateSar);
+updateSar();
 
 // ---------------------------------------------------------------------------
 // Atmosphere glow: a camera-facing ring around the globe's silhouette.
