@@ -1,0 +1,11 @@
+{
+  "layer": "NISAR_L2_Geocoded_Polarimetric_Covariance",
+  "title": "NISAR L-band backscatter (GCOV, false colour)",
+  "start": "2026-10-19",
+  "end": "2026-11-11",
+  "days": 24,
+  "width": 4096,
+  "height": 2048,
+  "coveragePercent": 50.7,
+  "source": "NASA GIBS"
+}
