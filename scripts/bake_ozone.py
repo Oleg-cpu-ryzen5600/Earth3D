@@ -65,13 +65,33 @@ def find_granules(days):
     return sorted(granules)
 
 
-def download(url, token, tries=4):
+class EarthdataSession(requests.Session):
+    """Keeps the Authorization header on redirects between NASA Earthdata hosts.
+
+    GES DISC answers with a redirect to urs.earthdata.nasa.gov (OAuth); plain requests
+    drops the Bearer header on that cross-host redirect and gets the login page instead.
+    """
+
+    def rebuild_auth(self, prepared_request, response):
+        headers = prepared_request.headers
+        if "Authorization" in headers:
+            old = requests.utils.urlparse(response.request.url).hostname or ""
+            new = requests.utils.urlparse(prepared_request.url).hostname or ""
+            nasa = lambda h: h.endswith("earthdata.nasa.gov") or h.endswith("gesdisc.eosdis.nasa.gov")
+            if not (nasa(old) and nasa(new)) and old != new:
+                del headers["Authorization"]      # never send the token to non-NASA hosts (e.g. S3)
+
+
+def download(session, url, tries=4):
     for attempt in range(tries):
         try:
-            r = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=180)
-            if r.status_code in (401, 403) or r.content[:15].lower().startswith(b"<!doctype html"):
-                raise SystemExit("Earthdata Login refused the token: check EARTHDATA_TOKEN and that the "
-                                 "'NASA GESDISC DATA ARCHIVE' application is authorized in your profile.")
+            r = session.get(url, timeout=180)
+            is_html = r.content[:200].lstrip().lower().startswith((b"<!doctype html", b"<html"))
+            if r.status_code in (401, 403) or is_html:
+                host = requests.utils.urlparse(r.url).hostname
+                raise SystemExit(f"Earthdata Login refused the token (HTTP {r.status_code} from {host}): check the "
+                                 "EARTHDATA_TOKEN secret and that the 'NASA GESDISC DATA ARCHIVE' application is "
+                                 "authorized in your Earthdata profile.")
             r.raise_for_status()
             return r.content
         except SystemExit:
@@ -141,9 +161,11 @@ def main():
 
     granules = find_granules(args.days)
     print("Granules:", ", ".join(d for d, _ in granules))
+    session = EarthdataSession()
+    session.headers["Authorization"] = f"Bearer {token}"
     stack = []
     for day, url in granules:
-        stack.append(read_ozone(download(url, token)))
+        stack.append(read_ozone(download(session, url)))
         print(f"  {day}: {np.isfinite(stack[-1]).mean() * 100:.1f}% of cells valid")
     stack = np.stack(stack)
     with np.errstate(invalid="ignore"):
