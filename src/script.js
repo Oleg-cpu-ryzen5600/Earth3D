@@ -237,7 +237,18 @@ const LOD_LEVELS = [
 
 const LOD_TEXEL_RATIO = 0.5;   // up to 2x magnification of texels is acceptable
 const LOD_DOWN_MARGIN = 0.8;   // hysteresis: switch down only well below the threshold
-const lazyLoader = new THREE.TextureLoader();
+// ImageBitmapLoader decodes images off the main thread (TextureLoader decodes during the GPU upload -> stutter)
+const bitmapLoader = new THREE.ImageBitmapLoader();
+bitmapLoader.setOptions({ imageOrientation: 'flipY', premultiplyAlpha: 'none' });
+bitmapLoader.setCrossOrigin('anonymous');
+const bitmapTexture = (bitmap) =>
+{
+    const texture = new THREE.Texture(bitmap);
+    texture.flipY = false;                      // already flipped while decoding
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+};
 const lodLabel = document.querySelector('#lod-level');
 let lodCurrent = 0;
 let lodWanted = 0;
@@ -289,10 +300,10 @@ const updateLod = () =>
     if (level.loading) return;
     level.loading = true;
     if (lodLabel) lodLabel.textContent = `Map detail: ${LOD_LEVELS[lodCurrent].label} → loading ${level.label}…`;
-    lazyLoader.load(level.url, (texture) =>
+    bitmapLoader.load(level.url, (bitmap) =>
     {
         level.loading = false;
-        texture.colorSpace = THREE.SRGBColorSpace;
+        const texture = bitmapTexture(bitmap);
         texture.anisotropy = maxAnisotropy;
         level.texture = texture;
         renderer.initTexture(texture);          // upload to the GPU now, not on the first visible frame
@@ -333,8 +344,12 @@ const TILE_SEGMENTS = 12;
 
 const tileGroup = new THREE.Group();
 globe.add(tileGroup);
-const tileLoader = new THREE.TextureLoader();
-tileLoader.setCrossOrigin('anonymous');
+const TILE_UPLOADS_PER_FRAME = 2;                       // spreads GPU uploads over frames (no hitches)
+const TILE_SELECT_INTERVAL = 120;                        // ms between visible-tile recomputations
+const tileReady = [];                                    // decoded tiles waiting for their GPU upload
+let tileSelectTime = 0;
+let tileSelectTimer = 0;
+let tileLevelShown = 0;
 const tiles = new Map();                                 // key -> { z, y, x, mesh, state, used }
 const tileQueue = [];
 let tilesLoading = 0;
@@ -370,12 +385,15 @@ const createTileMesh = (z, y, x, texture) =>
     );
     const material = new THREE.MeshBasicMaterial({
         map: texture,
+        // No depth writes: the finely tessellated tile bulges slightly above the coarser globe mesh that
+        // the data layers share; writing its depth would hide the data layers there ("torn" overlays).
+        depthWrite: false,
         polygonOffset: true,                             // above the base map, below the data layers
         polygonOffsetFactor: -0.2 - z * 0.05,
         polygonOffsetUnits: -0.2 - z * 0.05,
     });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.renderOrder = -1 + z * 0.01;
+    mesh.renderOrder = 0.5 + z * 0.01;                   // after the base map (tiles write no depth)
     return mesh;
 };
 
@@ -387,18 +405,13 @@ const pumpTileQueue = () =>
         if (tile.state !== 'queued') continue;
         tile.state = 'loading';
         tilesLoading++;
-        tileLoader.load(TILE_URL(tile.z, tile.y, tile.x), (texture) =>
+        bitmapLoader.load(TILE_URL(tile.z, tile.y, tile.x), (bitmap) =>
         {
             tilesLoading--;
-            if (tile.state !== 'loading') { texture.dispose(); pumpTileQueue(); return; }
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.anisotropy = maxAnisotropy;
-            texture.generateMipmaps = false;             // tiles are shown close to 1:1, saves upload time
-            texture.minFilter = THREE.LinearFilter;
-            tile.mesh = createTileMesh(tile.z, tile.y, tile.x, texture);
-            tile.mesh.visible = tile.wanted;
-            tileGroup.add(tile.mesh);
-            tile.state = 'ready';
+            if (tile.state !== 'loading') { bitmap.close?.(); pumpTileQueue(); return; }
+            tile.bitmap = bitmap;
+            tile.state = 'decoded';
+            tileReady.push(tile);
             requestRender();
             pumpTileQueue();
         }, undefined, () =>
@@ -410,38 +423,71 @@ const pumpTileQueue = () =>
     }
 };
 
+// GPU upload of a few decoded tiles per frame
+const uploadReadyTiles = () =>
+{
+    for (let n = 0; n < TILE_UPLOADS_PER_FRAME && tileReady.length; n++)
+    {
+        const tile = tileReady.shift();
+        if (tile.state !== 'decoded') { tile.bitmap?.close?.(); continue; }
+        const texture = bitmapTexture(tile.bitmap);
+        tile.bitmap = null;
+        texture.generateMipmaps = false;                 // tiles are shown close to 1:1, saves upload time
+        texture.minFilter = THREE.LinearFilter;
+        tile.mesh = createTileMesh(tile.z, tile.y, tile.x, texture);
+        renderer.initTexture(texture);
+        tile.mesh.visible = tile.wanted;
+        tileGroup.add(tile.mesh);
+        tile.state = 'ready';
+    }
+    if (tileReady.length) requestRender();               // continue uploading on the next frame
+};
+
 const disposeTile = (key, tile) =>
 {
     if (tile.mesh)
     {
         tileGroup.remove(tile.mesh);
         tile.mesh.geometry.dispose();
+        tile.mesh.material.map?.source?.data?.close?.();
         tile.mesh.material.map?.dispose();
         tile.mesh.material.dispose();
     }
+    tile.bitmap?.close?.();
     tile.state = 'disposed';
     tiles.delete(key);
 };
 
 const updateTiles = () =>
 {
+    uploadReadyTiles();
+    // recompute the wanted tiles at most every TILE_SELECT_INTERVAL ms (camera moves every frame)
+    const now = performance.now();
+    if (now - tileSelectTime < TILE_SELECT_INTERVAL)
+    {
+        clearTimeout(tileSelectTimer);
+        tileSelectTimer = setTimeout(requestRender, TILE_SELECT_INTERVAL);   // final update when motion stops
+        return;
+    }
+    tileSelectTime = now;
     tileFrame++;
     const need = texelsNeeded();
     const base = LOD_LEVELS[LOD_LEVELS.length - 1].width;
     let level = 0;
-    if (need > base * 1.1)
+    if (need > base * (tileLevelShown ? 0.9 : 1.1))     // hysteresis around the 8K -> tiles switch
     {
         level = TILE_MIN_LEVEL;
-        while (level < TILE_MAX_LEVEL && tileEquivalentWidth(level) < need) level++;
+        while (level < TILE_MAX_LEVEL && tileEquivalentWidth(level) < need * (level < tileLevelShown ? 0.8 : 1)) level++;
     }
     tileLevel = level;
+    tileLevelShown = level;
     tiles.forEach((tile) => { tile.wanted = false; });
 
     if (level)
     {
         const cap = viewCap();
-        // wanted: tiles of the current level plus the two coarser tile levels as fallback while loading
-        for (let z = Math.max(TILE_MIN_LEVEL, level - 2); z <= level; z++)
+        // wanted: tiles of the current level plus the next coarser tile level as fallback while loading
+        for (let z = Math.max(TILE_MIN_LEVEL, level - 1); z <= level; z++)
         {
             const span = tileSpan(z);
             const latMin = Math.max(-90, cap.lat - cap.radius);
