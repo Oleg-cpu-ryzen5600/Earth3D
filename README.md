@@ -2,10 +2,10 @@
 
 Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/) and custom GLSL shaders.
 
-- Day / night transition driven by the sun direction (city lights on the night side)
-- Clouds and sun reflection on the oceans from a combined specular/clouds texture
+- Evenly lit globe (no day/night cycle) with a cloud layer
 - Fresnel atmosphere tint on the planet plus a separate glowing atmosphere shell
-- 23.5° axial tilt, slow rotation, orbit camera (drag to rotate, scroll to zoom)
+- 23.5° axial tilt, no automatic rotation — the globe moves only with the user
+- Orbit camera: drag to rotate, scroll to zoom down to ~300 km above the surface (controls slow down near the surface)
 - Double click — fullscreen
 
 ## Getting started
@@ -37,12 +37,11 @@ src/
   script.js                 # scene, camera, materials, animation loop
   style.css
   shaders/
-    earth/earth.vert|frag   # day/night, clouds, specular, fresnel
+    earth/earth.vert|frag   # surface, clouds, fresnel
     atmosphere/atmosphere.vert|frag
 static/textures/            # served as-is
   2k_earth_daymap.jpg
-  night.jpg
-  specularClouds.jpg        # R = ocean specular mask, G = clouds
+  specularClouds.jpg        # G = clouds
 ```
 
 ## Credits

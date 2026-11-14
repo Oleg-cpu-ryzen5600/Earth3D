@@ -19,7 +19,8 @@ const sizes = {
 };
 
 // Camera
-const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 100);
+// Small near plane so the surface isn't clipped when zoomed in close
+const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.001, 100);
 camera.position.set(-3.2, 2.9, -1.2).setLength(5);
 scene.add(camera);
 
@@ -73,13 +74,11 @@ const loadTexture = (path, isColor) =>
 };
 
 const earthDayTexture = loadTexture('textures/2k_earth_daymap.jpg', true);
-const earthNightTexture = loadTexture('textures/night.jpg', true);
-// R channel: ocean specular mask, G channel: clouds
+// G channel: clouds (R channel — ocean specular mask, unused without a sun)
 const earthSpecularCloudsTexture = loadTexture('textures/specularClouds.jpg', false);
 
-// Shared atmosphere colors
-const atmosphereDayColor = new THREE.Color(0x9fd8ff);
-const atmosphereTwilightColor = new THREE.Color(0x050c1f);
+// Atmosphere color
+const atmosphereColor = new THREE.Color(0x9fd8ff);
 
 // Earth
 const earthGeometry = new THREE.SphereGeometry(1, 64, 64);
@@ -88,11 +87,8 @@ const earthMaterial = new THREE.ShaderMaterial({
     fragmentShader: earthFragmentShader,
     uniforms: {
         uDayTexture: new THREE.Uniform(earthDayTexture),
-        uNightTexture: new THREE.Uniform(earthNightTexture),
         uSpecularCloudsTexture: new THREE.Uniform(earthSpecularCloudsTexture),
-        uSunDirection: new THREE.Uniform(new THREE.Vector3()),
-        uAtmosphereDayColor: new THREE.Uniform(atmosphereDayColor),
-        uAtmosphereTwilightColor: new THREE.Uniform(atmosphereTwilightColor),
+        uAtmosphereColor: new THREE.Uniform(atmosphereColor),
     },
 });
 const earth = new THREE.Mesh(earthGeometry, earthMaterial);
@@ -106,37 +102,34 @@ const atmosphereMaterial = new THREE.ShaderMaterial({
     vertexShader: atmosphereVertexShader,
     fragmentShader: atmosphereFragmentShader,
     uniforms: {
-        uSunDirection: new THREE.Uniform(new THREE.Vector3()),
-        uAtmosphereDayColor: new THREE.Uniform(atmosphereDayColor),
-        uAtmosphereTwilightColor: new THREE.Uniform(atmosphereTwilightColor),
+        uAtmosphereColor: new THREE.Uniform(atmosphereColor),
     },
 });
 const atmosphere = new THREE.Mesh(earthGeometry, atmosphereMaterial);
 atmosphere.scale.setScalar(1.025);
 scene.add(atmosphere);
 
-// Sun direction (the sun itself is not rendered, it only drives the shaders)
-const sunSpherical = new THREE.Spherical(1, Math.PI * 0.5, 0.5);
-const sunDirection = new THREE.Vector3().setFromSpherical(sunSpherical);
-earthMaterial.uniforms.uSunDirection.value.copy(sunDirection);
-atmosphereMaterial.uniforms.uSunDirection.value.copy(sunDirection);
-
 // Orbit controls
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.enablePan = false;
-controls.minDistance = 3;
+const EARTH_RADIUS = 1;
+controls.minDistance = 1.05; // ~320 km above the surface (Earth radius = 1)
 controls.maxDistance = 10;
 
-// Animation
-const clock = new THREE.Clock();
+// Slow down rotation/zoom near the surface so close-up navigation stays controllable
+const updateControlSpeed = () =>
+{
+    const altitude = camera.position.length() - EARTH_RADIUS;
+    const factor = THREE.MathUtils.clamp(altitude / 2, 0.02, 1);
+    controls.rotateSpeed = factor;
+    controls.zoomSpeed = THREE.MathUtils.clamp(factor * 2, 0.1, 1);
+};
+
+// Animation (no automatic rotation — the globe moves only with the user)
 const tick = () =>
 {
-    const elapsedTime = clock.getElapsedTime();
-
-    // Rotate the earth around its (tilted) axis
-    earth.rotation.y = elapsedTime * 0.1;
-
+    updateControlSpeed();
     controls.update();
     renderer.render(scene, camera);
 
