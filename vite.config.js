@@ -1,5 +1,4 @@
 import restart from 'vite-plugin-restart'
-import glsl from 'vite-plugin-glsl'
 
 export default {
     root: 'src/',
@@ -13,10 +12,11 @@ export default {
     build: {
         outDir: '../dist',
         emptyOutDir: true,
-        sourcemap: false
+        sourcemap: false,
+        // Textures are imported from src/ so they get hashed file names; never inline them
+        assetsInlineLimit: 0
     },
     plugins: [
-        restart({ restart: ['../static/**'] }),
-        glsl()
+        restart({ restart: ['../static/**'] })
     ]
 }
