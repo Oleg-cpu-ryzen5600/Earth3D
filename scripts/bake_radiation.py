@@ -11,7 +11,9 @@ Pipeline:
      convert cpm -> uSv/h with the Safecast factor for the LND 7317 tube (334 cpm per uSv/h);
      drop implausible values and dates in the future;
      drop airborne readings: consecutive readings of the same log/device that moved faster than
-     200 km/h (dosimeters carried on flights measure cosmic radiation at altitude, 10-50x ground level);
+     200 km/h (dosimeters carried on flights measure cosmic radiation at altitude, 10-50x ground level),
+     and readings above 1 uSv/h outside the documented contamination zones (Fukushima, Chernobyl);
+     keep land cells only (NASA GIBS OSM land mask) -- ocean cells are almost only flight corridors;
   3. aggregate per 0.5 x 0.5 degree cell: geometric mean (robust to single spikes),
      only cells with at least --min-count readings are shown;
   4. colour with a logarithmic scale 0.02 .. 1 uSv/h; cells without measurements stay
@@ -57,6 +59,16 @@ STOPS = [
 ]
 CELL_ALPHA = 235
 AIRBORNE_KMH = 200.0                              # faster than this between consecutive readings -> in a plane
+# Above this, a reading is treated as airborne (cosmic radiation at flight altitude) unless it lies in a
+# documented contamination zone: natural ground-level background stays well below it.
+HIGH_USVH = 1.0
+HOTSPOTS = {                                       # (lat_min, lat_max, lon_min, lon_max)
+    "Fukushima": (36.5, 38.5, 139.5, 141.5),
+    "Chernobyl": (51.0, 51.7, 29.3, 30.7),
+}
+LAND_MASK_URL = ("https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap"
+                 "&VERSION=1.3.0&LAYERS=OSM_Land_Mask&STYLES=&CRS=EPSG:4326&BBOX=-90,-180,90,180"
+                 "&WIDTH={w}&HEIGHT={h}&FORMAT=image/png&TRANSPARENT=true")
 
 
 class ProgressReader:
@@ -126,7 +138,7 @@ def airborne_mask(key, when, lat, lon):
 def aggregate(since, until, chunk_rows):
     log_sum = np.zeros(NX * NY, np.float64)
     count = np.zeros(NX * NY, np.int64)
-    first, last, used, seen, airborne = None, None, 0, 0, 0
+    first, last, used, seen, airborne, high = None, None, 0, 0, 0, 0
 
     r = requests.get(URL, stream=True, timeout=300, headers={"User-Agent": "earth3d-radiation-baker"})
     r.raise_for_status()
@@ -172,6 +184,12 @@ def aggregate(since, until, chunk_rows):
                                       errors="coerce").to_numpy()
                 fast = airborne_mask(key, when, lat, lon)
                 airborne += int(fast.sum())
+                in_hotspot = np.zeros(len(chunk), bool)
+                for la0, la1, lo0, lo1 in HOTSPOTS.values():
+                    in_hotspot |= (lat >= la0) & (lat <= la1) & (lon >= lo0) & (lon <= lo1)
+                too_high = (usvh > HIGH_USVH) & ~in_hotspot & ~fast
+                high += int(np.nansum(too_high))
+                fast = fast | too_high
                 ok = ((t >= since).to_numpy() & (t <= until).to_numpy() & ~fast
                       & np.isfinite(usvh) & np.isfinite(lat) & np.isfinite(lon)
                       & (usvh >= VALID_USVH[0]) & (usvh <= VALID_USVH[1])
@@ -190,9 +208,19 @@ def aggregate(since, until, chunk_rows):
                 last = hi if last is None or hi > last else last
                 if seen % (chunk_rows * 20) < chunk_rows:
                     print(f"  rows read {seen / 1e6:.0f} M, used {used / 1e6:.1f} M, "
-                          f"airborne dropped {airborne / 1e6:.1f} M", flush=True)
-    print(f"Done: {seen / 1e6:.1f} M rows read, {used / 1e6:.1f} M used, {airborne / 1e6:.1f} M airborne dropped")
-    return log_sum.reshape(NY, NX), count.reshape(NY, NX), first, last, used, seen, airborne
+                          f"airborne dropped {airborne / 1e6:.1f} M, high dropped {high / 1e6:.2f} M", flush=True)
+    print(f"Done: {seen / 1e6:.1f} M rows read, {used / 1e6:.1f} M used, {airborne / 1e6:.1f} M airborne "
+          f"and {high / 1e6:.2f} M high (outside hotspots) dropped")
+    return log_sum.reshape(NY, NX), count.reshape(NY, NX), first, last, used, seen, airborne, high
+
+
+def land_cells():
+    """Boolean (NY, NX) grid: cell contains land/ice according to the GIBS OSM land mask."""
+    r = requests.get(LAND_MASK_URL.format(w=NX * 4, h=NY * 4), timeout=180)
+    r.raise_for_status()
+    alpha = np.asarray(Image.open(io.BytesIO(r.content)).convert("RGBA"))[..., 3] > 127
+    frac = alpha.reshape(NY, 4, NX, 4).mean(axis=(1, 3))
+    return frac > 0
 
 
 def colourize(usvh):
@@ -212,8 +240,10 @@ def main():
     args = ap.parse_args()
 
     until = time.strftime("%Y-%m-%d", time.gmtime())
-    log_sum, count, first, last, used, seen, airborne = aggregate(args.since, until, args.chunk_rows)
-    shown = count >= args.min_count
+    log_sum, count, first, last, used, seen, airborne, high = aggregate(args.since, until, args.chunk_rows)
+    land = land_cells()
+    shown = (count >= args.min_count) & land
+    print(f"Cells with enough readings: {(count >= args.min_count).sum()}, on land: {shown.sum()}")
     if shown.sum() < 100:
         raise SystemExit("Too few cells with data, not writing output")
     gmean = np.full(count.shape, np.nan)
@@ -245,6 +275,8 @@ def main():
             "readingsUsed": used,
             "rowsRead": seen,
             "airborneReadingsDropped": airborne,
+            "highReadingsDroppedOutsideHotspots": high,
+            "oceanCellsDropped": int(((count >= args.min_count) & ~land).sum()),
             "cellsWithData": int(shown.sum()),
             "earthSurfaceCoveredPercent": round(float(area[shown].sum() / area.sum() * 100), 2),
             "medianUSvH": round(float(np.median(values)), 3),
