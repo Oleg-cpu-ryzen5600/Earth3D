@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: pip install pillow
+      - run: pip install pillow numpy
 
       - name: Bake composite from NASA GIBS
         run: python scripts/bake_sar.py --end "${{ inputs.end_date }}" --days "${{ inputs.days }}"
