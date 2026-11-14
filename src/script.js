@@ -352,6 +352,7 @@ const DATA_LAYERS = [
                 highLabel: 'Thick',
             }
             : null,
+        legend: ozoneMeta?.noData ? [[ozoneMeta.noData.color, ozoneMeta.noData.label]] : null,
     },
     {
         id: 'radiation',

@@ -12,7 +12,8 @@ Pipeline:
   3. average the valid values of the N days per 1 x 1 degree cell (fills the
      gaps between orbits and the OMI row-anomaly stripes);
   4. upsample to 2048 x 1024 (bilinear) and colour with a fixed scale
-     (OZONE_MIN..OZONE_MAX DU), cells without data stay transparent (polar night);
+     (OZONE_MIN..OZONE_MAX DU); where OMI has no data (polar night: it measures
+     reflected sunlight) a semi-transparent grey cap with a soft edge is drawn;
   5. write src/textures/ozone.webp + src/ozone-meta.json (dates, scale, statistics).
 
 Usage:
@@ -50,6 +51,9 @@ STOPS = [
     (500, (200, 40, 40)),
 ]
 WIDTH = 2048
+NO_DATA_RGB = (118, 124, 136)                 # grey cap where OMI cannot measure (polar night)
+NO_DATA_ALPHA = 120                           # semi-transparent: the map stays visible underneath
+EDGE_BLUR_CELLS = 2                           # soft data -> no-data transition, in 1-degree cells
 
 
 def find_granules(days):
@@ -151,6 +155,32 @@ def upsample(grid, width):
     return out
 
 
+def blur_mask(mask, cells):
+    """Box blur of a (180, 360) 0/1 mask, wrapping in longitude."""
+    m = mask.astype(np.float32)
+    for _ in range(cells):
+        m = (np.roll(m, 1, axis=1) + m + np.roll(m, -1, axis=1)) / 3
+        padded = np.vstack([m[:1], m, m[-1:]])
+        m = (padded[:-2] + padded[1:-1] + padded[2:]) / 3
+    return m
+
+
+def compose(mean, width):
+    """RGBA image: coloured data, grey semi-transparent cap where there is none, soft edge."""
+    size = (width, width // 2)
+    hi = upsample(mean, width)
+    coverage = blur_mask(np.isfinite(mean), EDGE_BLUR_CELLS)
+    cov_hi = np.asarray(Image.fromarray(coverage, "F").resize(size, Image.BILINEAR))
+    k = np.clip((cov_hi - 0.5) * 2, 0, 1)          # 0 at the data edge -> 1 a couple of degrees inside
+    k = k * k * (3 - 2 * k)                        # smoothstep
+    k[~np.isfinite(hi)] = 0
+    data_rgb = colourize(np.nan_to_num(hi, nan=OZONE_MIN)).astype(np.float32)
+    grey = np.array(NO_DATA_RGB, np.float32)
+    rgb = data_rgb * k[..., None] + grey * (1 - k[..., None])
+    alpha = 255 * k + NO_DATA_ALPHA * (1 - k)
+    return np.dstack([np.rint(rgb), np.rint(alpha)]).astype(np.uint8)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=5, help="number of latest daily files to average")
@@ -175,12 +205,8 @@ def main():
     if coverage < 40:
         raise SystemExit("Coverage suspiciously low, not writing output")
 
-    hi = upsample(mean, WIDTH)
-    rgb = colourize(np.nan_to_num(hi, nan=OZONE_MIN))
-    alpha = np.where(np.isfinite(hi), 255, 0).astype(np.uint8)
-    rgb[alpha == 0] = 0
     OUT_IMAGE.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(np.dstack([rgb, alpha]), "RGBA").save(OUT_IMAGE, "WEBP", quality=90, method=6)
+    Image.fromarray(compose(mean, WIDTH), "RGBA").save(OUT_IMAGE, "WEBP", quality=90, method=6)
 
     # area-weighted statistics (cells shrink towards the poles)
     lat = np.linspace(89.5, -89.5, 180)
@@ -196,6 +222,8 @@ def main():
         "unit": "DU",
         "scale": {"min": OZONE_MIN, "max": OZONE_MAX,
                   "stops": [[s[0], "#%02x%02x%02x" % s[1]] for s in STOPS]},
+        "noData": {"color": "rgba(%d, %d, %d, %.2f)" % (NO_DATA_RGB + (NO_DATA_ALPHA / 255,)),
+                   "label": "No data (polar night)"},
         "stats": {
             "globalMeanDU": round(float(np.sum(mean[ok] * w[ok]) / np.sum(w[ok])), 1),
             "minDU": round(float(np.nanmin(mean)), 1),
