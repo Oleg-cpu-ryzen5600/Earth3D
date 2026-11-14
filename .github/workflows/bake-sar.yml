@@ -1,0 +1,54 @@
+name: Bake SAR texture
+
+on:
+  workflow_dispatch:
+    inputs:
+      end_date:
+        description: "Last day (YYYY-MM-DD). Empty = latest available in GIBS"
+        required: false
+        default: ""
+      days:
+        description: "Number of days to composite"
+        required: false
+        default: "24"
+
+permissions:
+  contents: write
+  actions: write   # to trigger the Pages deploy after committing
+
+concurrency:
+  group: bake-sar
+  cancel-in-progress: false
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pillow
+
+      - name: Bake composite from NASA GIBS
+        run: python scripts/bake_sar.py --end "${{ inputs.end_date }}" --days "${{ inputs.days }}"
+
+      - name: Commit texture
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/textures/sar.webp src/sar-meta.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          RANGE=$(python -c "import json;m=json.load(open('src/sar-meta.json'));print(m['start'],'..',m['end'])")
+          git commit -m "Bake SAR texture: $RANGE"
+          git push
+
+      - name: Redeploy GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main --repo "${{ github.repository }}"
