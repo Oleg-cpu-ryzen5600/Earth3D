@@ -16,8 +16,10 @@ Pipeline:
      keep land cells only (NASA GIBS OSM land mask) -- ocean cells are almost only flight corridors;
   3. aggregate per 0.5 x 0.5 degree cell: geometric mean (robust to single spikes),
      only cells with at least --min-count readings are shown;
-  4. colour with a logarithmic scale 0.02 .. 1 uSv/h; cells without measurements stay
-     transparent (honest: no interpolation into unmeasured areas);
+  4. smooth rendering: the cell values are spread with a short Gaussian-like blur (weighted by
+     where data exist, so values are not diluted) and the opacity fades out at the edge of the
+     measured area -> rounded zones instead of squares, no long-range interpolation into
+     unmeasured areas; colour with a logarithmic scale 0.02 .. 1 uSv/h;
   5. write src/textures/radiation.webp + src/radiation-meta.json (dates, scale, statistics).
 
 Usage:
@@ -58,6 +60,8 @@ STOPS = [
     (1.00, (200, 30, 60)),
 ]
 CELL_ALPHA = 235
+SMOOTH_PX = 3                                     # box radius (texture px) of the 3-pass blur ~ Gaussian
+ALPHA_RAMP = (0.10, 0.40)                         # blurred data weight -> opacity 0..1 (soft rounded edges)
 AIRBORNE_KMH = 200.0                              # faster than this between consecutive readings -> in a plane
 # Above this, a reading is treated as airborne (cosmic radiation at flight altitude) unless it lies in a
 # documented contamination zone: natural ground-level background stays well below it.
@@ -223,6 +227,37 @@ def land_cells():
     return frac > 0
 
 
+def box_blur(a, r):
+    """Box blur with radius r: wraps in longitude (axis 1), clamps at the poles (axis 0)."""
+    if r <= 0:
+        return a
+    k = 2 * r + 1
+    ext = np.concatenate([a[:, -r:], a, a[:, :r]], axis=1)
+    c = np.cumsum(ext, axis=1, dtype=np.float64)
+    c = np.concatenate([np.zeros((a.shape[0], 1)), c], axis=1)
+    a = (c[:, k:] - c[:, :-k]) / k
+    ext = np.concatenate([np.repeat(a[:1], r, axis=0), a, np.repeat(a[-1:], r, axis=0)], axis=0)
+    c = np.cumsum(ext, axis=0, dtype=np.float64)
+    c = np.concatenate([np.zeros((1, a.shape[1])), c], axis=0)
+    return (c[k:] - c[:-k]) / k
+
+
+def smooth_render(gmean, shown):
+    """RGBA texture with rounded, soft-edged zones (3-pass box blur ~ Gaussian)."""
+    w = np.repeat(np.repeat(shown.astype(np.float64), PX_PER_CELL, 0), PX_PER_CELL, 1)
+    logv = np.repeat(np.repeat(np.log(np.nan_to_num(gmean, nan=1.0)), PX_PER_CELL, 0), PX_PER_CELL, 1)
+    num, den = w * logv, w
+    for _ in range(3):
+        num, den = box_blur(num, SMOOTH_PX), box_blur(den, SMOOTH_PX)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        value = np.exp(np.where(den > 1e-6, num / den, np.log(SCALE_MIN)))
+    t = np.clip((den - ALPHA_RAMP[0]) / (ALPHA_RAMP[1] - ALPHA_RAMP[0]), 0, 1)
+    alpha = np.rint(CELL_ALPHA * t * t * (3 - 2 * t)).astype(np.uint8)
+    rgb = colourize(value)
+    rgb[alpha == 0] = 0
+    return np.dstack([rgb, alpha])
+
+
 def colourize(usvh):
     xs = np.log10([s[0] for s in STOPS])
     v = np.log10(np.clip(usvh, SCALE_MIN, SCALE_MAX))
@@ -249,11 +284,7 @@ def main():
     gmean = np.full(count.shape, np.nan)
     gmean[shown] = np.exp(log_sum[shown] / count[shown])
 
-    rgb = colourize(np.nan_to_num(gmean, nan=SCALE_MIN))
-    alpha = np.where(shown, CELL_ALPHA, 0).astype(np.uint8)
-    rgb[~shown] = 0
-    img = np.dstack([rgb, alpha])
-    img = np.repeat(np.repeat(img, PX_PER_CELL, axis=0), PX_PER_CELL, axis=1)
+    img = smooth_render(gmean, shown)
     OUT_IMAGE.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(img, "RGBA").save(OUT_IMAGE, "WEBP", lossless=True, method=6)
 
