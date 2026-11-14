@@ -12,6 +12,9 @@ import sarMeta from './sar-meta.json';
 // these globs are empty and the layer is shown as "Coming soon"
 const ozoneUrl = Object.values(import.meta.glob('./textures/ozone.webp', { eager: true, query: '?url', import: 'default' }))[0] ?? null;
 const ozoneMeta = Object.values(import.meta.glob('./ozone-meta.json', { eager: true, import: 'default' }))[0] ?? null;
+// Radiation background (Safecast) baked by scripts/bake_radiation.py; optional in the same way
+const radiationUrl = Object.values(import.meta.glob('./textures/radiation.webp', { eager: true, query: '?url', import: 'default' }))[0] ?? null;
+const radiationMeta = Object.values(import.meta.glob('./radiation-meta.json', { eager: true, import: 'default' }))[0] ?? null;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -358,10 +361,25 @@ const DATA_LAYERS = [
         id: 'radiation',
         icon: '☢️',
         name: 'Radiation background',
-        description: 'Natural background radiation level at the surface.',
-        url: null,
+        description: 'Gamma dose rate near the ground, measured by volunteers with Safecast dosimeters. Only measured places are coloured.',
+        url: radiationUrl,
         enabled: false,
-        opacity: 0.8,
+        opacity: 0.9,
+        details: radiationMeta
+            ? `${radiationMeta.start} – ${radiationMeta.end} · Safecast · `
+                + `${(radiationMeta.stats.readingsUsed / 1e6).toFixed(1)} M readings · median ${radiationMeta.stats.medianUSvH} µSv/h`
+            : null,
+        scale: radiationMeta
+            ? {
+                stops: radiationMeta.scale.stops,
+                min: radiationMeta.scale.min,
+                max: radiationMeta.scale.max,
+                log: true,
+                unit: 'µSv/h',
+                lowLabel: 'Low',
+                highLabel: 'High',
+            }
+            : null,
     },
 ];
 
@@ -431,9 +449,13 @@ DATA_LAYERS.forEach((layer, index) =>
     if (layer.scale)
     {
         // continuous colour scale: gradient bar with values in its units
-        const { stops, min, max, unit, lowLabel, highLabel } = layer.scale;
+        const { stops, min, max, unit, lowLabel, highLabel, log } = layer.scale;
+        const position = log
+            ? (value) => (Math.log(value) - Math.log(min)) / (Math.log(max) - Math.log(min))
+            : (value) => (value - min) / (max - min);
+        const mid = log ? Number(Math.sqrt(min * max).toPrecision(2)) : Math.round((min + max) / 2);
         const gradient = stops
-            .map(([value, color]) => `${color} ${((value - min) / (max - min)) * 100}%`)
+            .map(([value, color]) => `${color} ${position(value) * 100}%`)
             .join(', ');
         const scale = document.createElement('div');
         scale.className = 'scale';
@@ -444,7 +466,7 @@ DATA_LAYERS.forEach((layer, index) =>
         scale.querySelector('.scale-bar').style.background = `linear-gradient(to right, ${gradient})`;
         const ticks = scale.querySelectorAll('.scale-ticks span');
         ticks[0].textContent = `${min} ${unit}`;
-        ticks[1].textContent = `${Math.round((min + max) / 2)}`;
+        ticks[1].textContent = `${mid}`;
         ticks[2].textContent = `${max} ${unit}`;
         const labels = scale.querySelectorAll('.scale-labels span');
         labels[0].textContent = lowLabel;

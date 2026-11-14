@@ -58,6 +58,7 @@ scripts/
   bake_sar.py        # builds sar.webp from NASA GIBS
   bake_earth.py      # builds earth_2k/4k/8k.webp from NASA GIBS Blue Marble
   bake_ozone.py      # builds ozone.webp from NASA OMI/Aura OMTO3d (needs EARTHDATA_TOKEN)
+  bake_radiation.py  # builds radiation.webp from the Safecast dataset (CC0)
 vercel.json          # cache headers for hashed assets
 ```
 
@@ -77,6 +78,15 @@ upsamples to 2048×1024 and applies a fixed colour scale 150–500 DU (cells wit
 The files require [Earthdata Login](https://urs.earthdata.nasa.gov): add a token as the repository secret
 `EARTHDATA_TOKEN` (and authorize the *NASA GESDISC DATA ARCHIVE* application in your Earthdata profile), then run
 **Actions → Bake ozone texture → Run workflow**. The token expires after 60 days.
+
+## Radiation data
+
+`scripts/bake_radiation.py` builds `src/textures/radiation.webp` from the complete **Safecast** radiation dataset
+(citizen-science dosimeter readings, CC0): the archive is streamed (nothing stored on disk), readings since `--since`
+(default 2018-01-01) in cpm or µSv/h are converted to µSv/h (334 cpm per µSv/h, LND 7317 tube) and aggregated per
+0.5°×0.5° cell as a geometric mean (robust to spikes). Only cells with at least `--min-count` readings are coloured
+(log scale 0.02–1 µSv/h); unmeasured areas stay transparent — no interpolation.
+Run **Actions → Bake radiation texture → Run workflow** (takes a while: the archive is several GB).
 
 ## SAR data
 
