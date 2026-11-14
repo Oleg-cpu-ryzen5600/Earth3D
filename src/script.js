@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import earthDayUrl from './textures/earth_day.webp';
+// Earth base map in three levels of detail (NASA GIBS Blue Marble, baked by scripts/bake_earth.py).
+// Only the 2K level is loaded at start; 4K / 8K are fetched when the camera gets close enough.
+import earth2kUrl from './textures/earth_2k.webp';
+import earth4kUrl from './textures/earth_4k.webp';
+import earth8kUrl from './textures/earth_8k.webp';
 // SAR composite baked from NASA GIBS by scripts/bake_sar.py (GitHub Actions: "Bake SAR texture")
 import sarUrl from './textures/sar.webp';
 import sarMeta from './sar-meta.json';
@@ -65,7 +69,7 @@ const loadTexture = (url, isColor) =>
     return texture;
 };
 
-const earthDayTexture = loadTexture(earthDayUrl, true);
+const earthBaseTexture = loadTexture(earth2kUrl, true);
 const sarTexture = loadTexture(sarUrl, true);
 
 // ---------------------------------------------------------------------------
@@ -78,9 +82,96 @@ scene.add(globe);
 // Earth: evenly lit, no lighting calculations at all
 const earth = new THREE.Mesh(
     new THREE.SphereGeometry(EARTH_RADIUS, SEGMENTS, SEGMENTS),
-    new THREE.MeshBasicMaterial({ map: earthDayTexture })
+    new THREE.MeshBasicMaterial({ map: earthBaseTexture })
 );
 globe.add(earth);
+
+// ---------------------------------------------------------------------------
+// Level of detail for the Earth texture
+// The level is chosen from how many screen pixels the globe covers, so it adapts
+// to zoom, window size and pixel ratio. Higher levels load lazily, in the
+// background; the current level stays visible until the next one is ready.
+// ---------------------------------------------------------------------------
+const maxTextureSize = renderer.capabilities.maxTextureSize;
+const LOD_LEVELS = [
+    { width: 2048, label: '2K', url: earth2kUrl, texture: earthBaseTexture },
+    { width: 4096, label: '4K', url: earth4kUrl, texture: null },
+    { width: 8192, label: '8K', url: earth8kUrl, texture: null },
+].filter((level) => level.width <= maxTextureSize && !(isTouch && level.width > 4096)); // 8K: desktop only
+
+const LOD_TEXEL_RATIO = 0.5;   // up to 2x magnification of texels is acceptable
+const LOD_DOWN_MARGIN = 0.8;   // hysteresis: switch down only well below the threshold
+const lazyLoader = new THREE.TextureLoader();
+const lodLabel = document.querySelector('#lod-level');
+let lodCurrent = 0;
+let lodWanted = 0;
+
+const texelsNeeded = () =>
+{
+    // projected radius of the globe in device pixels
+    const distance = camera.position.length();
+    const angularRadius = Math.asin(Math.min(1, EARTH_RADIUS / distance));
+    const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+    const radiusPx = (Math.tan(angularRadius) / Math.tan(halfFov)) * renderer.domElement.height / 2;
+    // around the centre of the disc 1 radian of longitude ~ radiusPx pixels -> full texture width = 2*pi*radiusPx
+    return 2 * Math.PI * radiusPx * LOD_TEXEL_RATIO;
+};
+
+const showLod = (index) =>
+{
+    lodCurrent = index;
+    earth.material.map = LOD_LEVELS[index].texture;
+    earth.material.needsUpdate = true;
+    if (lodLabel) lodLabel.textContent = `Earth texture: ${LOD_LEVELS[index].label}`;
+    // free GPU memory of levels far above the one in use (8K is ~170 MB with mipmaps)
+    LOD_LEVELS.forEach((level, i) =>
+    {
+        if (i > index + 1 && level.texture)
+        {
+            level.texture.dispose();
+            level.texture = null;
+        }
+    });
+    requestRender();
+};
+
+const updateLod = () =>
+{
+    const need = texelsNeeded();
+    let target = LOD_LEVELS.findIndex((level) => level.width >= need);
+    if (target === -1) target = LOD_LEVELS.length - 1;
+    if (target < lodCurrent && need > LOD_LEVELS[target].width * LOD_DOWN_MARGIN) target = lodCurrent;
+    if (target === lodWanted) return;
+    lodWanted = target;
+
+    const level = LOD_LEVELS[target];
+    if (level.texture)
+    {
+        showLod(target);
+        return;
+    }
+    if (level.loading) return;
+    level.loading = true;
+    if (lodLabel) lodLabel.textContent = `Earth texture: ${LOD_LEVELS[lodCurrent].label} → loading ${level.label}…`;
+    lazyLoader.load(level.url, (texture) =>
+    {
+        level.loading = false;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = maxAnisotropy;
+        level.texture = texture;
+        renderer.initTexture(texture);          // upload to the GPU now, not on the first visible frame
+        if (lodWanted === target) showLod(target);
+        else
+        {
+            if (target > lodCurrent + 1) { texture.dispose(); level.texture = null; } // no longer needed
+            if (lodLabel) lodLabel.textContent = `Earth texture: ${LOD_LEVELS[lodCurrent].label}`;
+        }
+    }, undefined, () =>
+    {
+        level.loading = false;
+        lodWanted = lodCurrent;                 // keep the current level if the download failed
+    });
+};
 
 // SAR overlay: same sphere geometry, drawn on top of the surface (polygon offset avoids z-fighting)
 const sarMaterial = new THREE.MeshBasicMaterial({
@@ -270,6 +361,7 @@ const tick = () =>
         needsRender = false;
         updateControlSpeed();
         updateAtmosphere();
+        updateLod();
         renderer.render(scene, camera);
     }
 

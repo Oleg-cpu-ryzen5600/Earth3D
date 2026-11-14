@@ -3,6 +3,7 @@
 Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/) — standard materials only, no custom shaders.
 
 - Evenly lit globe (no day/night cycle)
+- **Earth texture with 3 levels of detail** (2K → 4K → 8K, NASA Blue Marble): sharper imagery is loaded automatically as you zoom in
 - **Multi-sensor SAR layer**: NISAR L-band + Sentinel-1 C-band backscatter fused into one global composite (NISAR colour scale), baked from NASA GIBS; toggle + opacity slider
 - Atmosphere glow: a camera-facing ring around the silhouette with per-vertex alpha
 - 23.5° axial tilt, no automatic rotation — the globe moves only with the user
@@ -13,7 +14,8 @@ Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/)
 
 - Renders only when the camera moves (render on demand) — ~0 GPU load when idle
 - Pixel ratio capped at 1.5 on touch devices, 2 elsewhere
-- WebP textures: base map 2048×1024 (~190 KB) + SAR composite 4096×2048 (~1 MB); hashed file names + long-term caching (`vercel.json`)
+- WebP textures with hashed file names + long-term caching (`vercel.json`): SAR composite 4096×2048 (~0.9 MB) and the base map in three levels (below)
+- Base map level of detail: only 2K is loaded at start; 4K and 8K are downloaded in the background when the globe covers enough screen pixels (zoom, window size and pixel ratio all count), uploaded to the GPU ahead of time and swapped in without a flash. Hysteresis prevents flicker at the threshold, unused high levels are freed from GPU memory, 8K is skipped on touch devices and GPUs with `maxTextureSize` < 8192
 - Loading screen driven by `THREE.LoadingManager`
 
 ## Getting started
@@ -45,13 +47,22 @@ src/
   script.js          # scene, globe, atmosphere ring, controls, render loop
   style.css
   textures/
-    earth_day.webp   # surface colour
+    earth_2k.webp    # base map, far (loaded at start)
+    earth_4k.webp    # base map, middle (on demand)
+    earth_8k.webp    # base map, close (on demand)
     sar.webp         # SAR overlay (with alpha), generated
   sar-meta.json      # sources, dates and fusion stats of sar.webp, generated
 scripts/
   bake_sar.py        # builds sar.webp from NASA GIBS
+  bake_earth.py      # builds earth_2k/4k/8k.webp from NASA GIBS Blue Marble
 vercel.json          # cache headers for hashed assets
 ```
+
+## Earth base map
+
+`scripts/bake_earth.py` downloads one 8192×4096 image of the static GIBS layer
+`BlueMarble_ShadedRelief_Bathymetry` and downscales it (Lanczos) to 4K and 2K, so all levels have identical colours.
+Run it with **Actions → Bake Earth textures → Run workflow** (only needed once, or to switch the layer).
 
 ## SAR data
 
@@ -91,7 +102,7 @@ We acknowledge the use of imagery provided by services from NASA's Global Imager
 ## Credits
 
 - Original project: [Earth3D by mitchcamza](https://github.com/mitchcamza/Earth3D) (MIT)
-- Earth day map: [Solar System Scope](https://www.solarsystemscope.com/textures/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+- Earth base map: NASA Blue Marble via [NASA GIBS](https://www.earthdata.nasa.gov/gibs)
 
 ## License
 
