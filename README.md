@@ -3,7 +3,6 @@
 Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/) — standard materials only, no custom shaders.
 
 - Evenly lit globe (no day/night cycle)
-- Separate cloud shell ~20 km above the surface (parallax when moving)
 - Atmosphere glow: a camera-facing ring around the silhouette with per-vertex alpha
 - 23.5° axial tilt, no automatic rotation — the globe moves only with the user
 - Orbit camera: drag to rotate, scroll to zoom down to ~300 km above the surface (controls slow down near the surface)
@@ -13,7 +12,7 @@ Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/)
 
 - Renders only when the camera moves (render on demand) — ~0 GPU load when idle
 - Pixel ratio capped at 1.5 on touch devices, 2 elsewhere
-- WebP textures, 2048×1024, ~390 KB in total; hashed file names + long-term caching (`vercel.json`)
+- Single WebP texture, 2048×1024, ~190 KB; hashed file names + long-term caching (`vercel.json`)
 - Loading screen driven by `THREE.LoadingManager`
 
 ## Getting started
@@ -42,18 +41,16 @@ The build uses a relative base path (`base: './'`), so `dist/` also works on Ver
 ```
 src/
   index.html
-  script.js          # scene, globe, clouds, atmosphere ring, controls, render loop
+  script.js          # scene, globe, atmosphere ring, controls, render loop
   style.css
   textures/
     earth_day.webp   # surface colour
-    clouds.webp      # grayscale cloud mask (used as alphaMap)
 vercel.json          # cache headers for hashed assets
 ```
 
 ## Credits
 
 - Original project: [Earth3D by mitchcamza](https://github.com/mitchcamza/Earth3D) (MIT)
-- Cloud mask derived from the specular/clouds texture of Bruno Simon's [Three.js Journey](https://threejs-journey.com)
 - Earth day map: [Solar System Scope](https://www.solarsystemscope.com/textures/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
 ## License

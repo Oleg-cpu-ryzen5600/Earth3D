@@ -1,13 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import earthDayUrl from './textures/earth_day.webp';
-import cloudsUrl from './textures/clouds.webp';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 const EARTH_RADIUS = 1;
-const CLOUDS_RADIUS = 1.003;      // ~20 km above the surface
 const ATMOSPHERE_RADIUS = 1.06;   // outer edge of the glow
 const ATMOSPHERE_COLOR = new THREE.Color(0x9fd8ff);
 const SEGMENTS = 128;             // smooth horizon when zoomed in close
@@ -65,10 +63,9 @@ const loadTexture = (url, isColor) =>
 };
 
 const earthDayTexture = loadTexture(earthDayUrl, true);
-const cloudsTexture = loadTexture(cloudsUrl, false); // grayscale cloud mask
 
 // ---------------------------------------------------------------------------
-// Globe (tilted group: Earth + clouds)
+// Globe (tilted group)
 // ---------------------------------------------------------------------------
 const globe = new THREE.Group();
 globe.rotation.x = THREE.MathUtils.degToRad(23.5); // axial tilt
@@ -80,18 +77,6 @@ const earth = new THREE.Mesh(
     new THREE.MeshBasicMaterial({ map: earthDayTexture })
 );
 globe.add(earth);
-
-// Clouds: separate transparent shell slightly above the surface (parallax when moving)
-const clouds = new THREE.Mesh(
-    new THREE.SphereGeometry(CLOUDS_RADIUS, SEGMENTS, SEGMENTS),
-    new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        alphaMap: cloudsTexture,
-        transparent: true,
-        depthWrite: false,
-    })
-);
-globe.add(clouds);
 
 // ---------------------------------------------------------------------------
 // Atmosphere glow: a camera-facing ring around the globe's silhouette.
