@@ -1,0 +1,50 @@
+{
+  "title": "Ground-level radiation background (Safecast)",
+  "source": "Safecast (CC0)",
+  "url": "https://api.safecast.org/system/measurements.tar.gz",
+  "start": "2018-01-01",
+  "end": "6017-02-17",
+  "since": "2018-01-01",
+  "unit": "µSv/h",
+  "cellDegrees": 0.5,
+  "scale": {
+    "min": 0.02,
+    "max": 1.0,
+    "log": true,
+    "stops": [
+      [
+        0.02,
+        "#285ac8"
+      ],
+      [
+        0.05,
+        "#28b4c8"
+      ],
+      [
+        0.1,
+        "#46c85a"
+      ],
+      [
+        0.2,
+        "#f0dc3c"
+      ],
+      [
+        0.4,
+        "#f58228"
+      ],
+      [
+        1.0,
+        "#c81e3c"
+      ]
+    ]
+  },
+  "stats": {
+    "readingsUsed": 159050563,
+    "rowsRead": 269537292,
+    "cellsWithData": 13096,
+    "earthSurfaceCoveredPercent": 5.57,
+    "medianUSvH": 0.944,
+    "p95USvH": 3.438,
+    "maxCellUSvH": 4.413
+  }
+}
