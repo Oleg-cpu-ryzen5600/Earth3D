@@ -118,6 +118,7 @@ Note: GIBS serves visualised (false-colour) imagery, so the harmonisation is a c
 alignment of the two sensors, not a radiometric (σ⁰) calibration.
 
 To refresh it: **Actions → Bake SAR texture → Run workflow** (recommended *days* = 36, i.e. three NISAR 12-day cycles).
+For close-ups, `scripts/upscale_overlays.py` (**Actions → Upscale overlays**) builds `sar_hi.webp` (8192×4096) from the same composite — no new data: small gaps are filled from neighbouring pixels, isolated noisy pixels are softened (3×3 median blend) and the image is upsampled 2× bicubically. The site loads it only when zoomed in; run it again after re-baking the SAR texture.
 The workflow runs `scripts/bake_sar.py`, commits `src/textures/sar.webp` + `src/sar-meta.json` and redeploys.
 Locally: `pip install pillow numpy && python scripts/bake_sar.py`.
 

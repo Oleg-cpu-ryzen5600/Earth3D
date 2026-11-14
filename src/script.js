@@ -8,6 +8,8 @@ import earth8kUrl from './textures/earth_8k.webp';
 // SAR composite baked from NASA GIBS by scripts/bake_sar.py (GitHub Actions: "Bake SAR texture")
 import sarUrl from './textures/sar.webp';
 import sarMeta from './sar-meta.json';
+// Enhanced 2x SAR overlay (scripts/upscale_overlays.py), loaded only for close-ups; optional
+const sarHiUrl = Object.values(import.meta.glob('./textures/sar_hi.webp', { eager: true, query: '?url', import: 'default' }))[0] ?? null;
 // Ozone (OMI/Aura OMTO3d) baked by scripts/bake_ozone.py; optional: until the first bake
 // these globs are empty and the layer is shown as "Coming soon"
 const ozoneUrl = Object.values(import.meta.glob('./textures/ozone.webp', { eager: true, query: '?url', import: 'default' }))[0] ?? null;
@@ -577,6 +579,8 @@ const DATA_LAYERS = [
         name: 'Surface water & moisture',
         description: 'Radar satellites see how wet and rough the ground is, even through clouds and at night.',
         url: sarUrl,
+        hiUrl: sarHiUrl,                 // 8192 px version for close-ups
+        hiWidth: 8192,
         enabled: true,
         opacity: 1,
         details: `${sarMeta.start} – ${sarMeta.end} · NISAR + Sentinel-1`
@@ -654,6 +658,7 @@ DATA_LAYERS.forEach((layer, index) =>
             polygonOffsetFactor: -1,
             polygonOffsetUnits: -1 - index,
         });
+        layer.baseTexture = layer.material.map;
         layer.mesh = new THREE.Mesh(earth.geometry, layer.material);
         layer.mesh.renderOrder = index;
         globe.add(layer.mesh);
@@ -761,6 +766,52 @@ DATA_LAYERS.forEach((layer, index) =>
 
     layerList.append(card);
 });
+
+// Data layers in higher resolution for close-ups: the enhanced texture is loaded (decoded off the main
+// thread) only when the layer is visible and the view needs more detail than the base texture has,
+// and freed again when zooming far out.
+const updateOverlayDetail = () =>
+{
+    const need = texelsNeeded();
+    DATA_LAYERS.forEach((layer) =>
+    {
+        if (!layer.hiUrl || !layer.mesh) return;
+        const baseWidth = layer.baseTexture.image?.width || 4096;
+        const wantHi = layer.mesh.visible && need > baseWidth * (layer.hiActive ? 0.9 : 1.2);
+        if (wantHi && !layer.hiTexture && !layer.hiLoading)
+        {
+            layer.hiLoading = true;
+            bitmapLoader.load(layer.hiUrl, (bitmap) =>
+            {
+                layer.hiLoading = false;
+                layer.hiTexture = bitmapTexture(bitmap);
+                layer.hiTexture.anisotropy = maxAnisotropy;
+                renderer.initTexture(layer.hiTexture);
+                requestRender();
+            }, undefined, () => { layer.hiLoading = false; layer.hiUrl = null; });
+        }
+        if (wantHi && layer.hiTexture && !layer.hiActive)
+        {
+            layer.material.map = layer.hiTexture;
+            layer.material.needsUpdate = true;
+            layer.hiActive = true;
+            requestRender();
+        }
+        else if (!wantHi && layer.hiActive)
+        {
+            layer.material.map = layer.baseTexture;
+            layer.material.needsUpdate = true;
+            layer.hiActive = false;
+            requestRender();
+        }
+        if (layer.hiTexture && !layer.hiActive && need < baseWidth * 0.5)
+        {
+            layer.hiTexture.source?.data?.close?.();
+            layer.hiTexture.dispose();             // far away: free ~170 MB of GPU memory
+            layer.hiTexture = null;
+        }
+    });
+};
 
 // Collapse / expand the panel (starts collapsed on small screens)
 const panel = document.querySelector('.panel');
@@ -970,6 +1021,7 @@ const tick = (now = performance.now()) =>
         updateAtmosphere();
         updateLod();
         updateTiles();
+        updateOverlayDetail();
         renderer.render(scene, camera);
     }
 
