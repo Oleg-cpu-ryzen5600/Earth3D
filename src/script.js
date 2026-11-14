@@ -217,6 +217,12 @@ window.addEventListener('resize', () =>
     requestRender();
 });
 
+// Browsers may drop the canvas contents of background tabs: redraw when the page is shown again
+document.addEventListener('visibilitychange', () =>
+{
+    if (!document.hidden) requestRender();
+});
+
 window.addEventListener('dblclick', () =>
 {
     const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
