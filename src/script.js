@@ -1015,7 +1015,31 @@ const setCollapsed = (collapsed) =>
     panelToggle.textContent = collapsed ? '▸' : '▾';
 };
 panelToggle.addEventListener('click', () => setCollapsed(!panel.classList.contains('panel--collapsed')));
-setCollapsed(window.matchMedia('(max-width: 600px)').matches);
+const smallScreen = window.matchMedia('(max-width: 600px)');
+setCollapsed(smallScreen.matches);
+
+// On phones the open panel covers most of the screen: a tap on the free part of the screen closes it
+// (a drag still rotates the globe and keeps the panel open)
+let tapStart = null;
+let pointersDown = 0;
+canvas.addEventListener('pointerdown', (event) =>
+{
+    pointersDown += 1;
+    // a second finger means pinch-zoom, not a tap
+    tapStart = pointersDown === 1 ? { x: event.clientX, y: event.clientY, time: performance.now() } : null;
+});
+window.addEventListener('pointerup', () => { pointersDown = Math.max(0, pointersDown - 1); });
+window.addEventListener('pointercancel', () => { pointersDown = Math.max(0, pointersDown - 1); });
+canvas.addEventListener('pointerup', (event) =>
+{
+    if (!tapStart) return;
+    const moved = Math.hypot(event.clientX - tapStart.x, event.clientY - tapStart.y);
+    const quick = performance.now() - tapStart.time < 400;
+    tapStart = null;
+    if (smallScreen.matches && moved < 10 && quick && !panel.classList.contains('panel--collapsed'))
+        setCollapsed(true);
+});
+canvas.addEventListener('pointercancel', () => { tapStart = null; });
 
 // ---------------------------------------------------------------------------
 // Atmosphere glow: a camera-facing ring around the globe's silhouette.

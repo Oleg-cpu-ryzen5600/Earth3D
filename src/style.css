@@ -56,10 +56,11 @@ html, body
 {
     position: fixed;
     top: 12px;
-    left: 12px;
+    right: 12px;                   /* right side; the Reset view button sits right below it */
     width: 300px;
     max-width: calc(100vw - 24px);
-    max-height: calc(100vh - 70px);
+    max-height: calc(100vh - 76px);
+    max-height: calc(100dvh - 76px);
     overflow-y: auto;
     background: var(--bg);
     border: 1px solid var(--line);
@@ -412,7 +413,7 @@ html, body
 {
     position: fixed;
     right: 12px;
-    bottom: 48px;
+    bottom: 12px;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -442,35 +443,20 @@ html, body
     border-color: var(--accent);
 }
 
-/* ------------------------------------------------------------------ credits */
+/* ------------------------------------------------------------------ credits (end of the panel) */
 
 .credits
 {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: 8px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
     color: rgba(219, 238, 255, 0.55);
     font-size: 10px;
-    line-height: 1.3;
-    pointer-events: none;
+    line-height: 1.35;
+    user-select: text;
 }
 
 .credits a
 {
     color: inherit;
-    pointer-events: auto;
-}
-
-@media (max-width: 600px)
-{
-    .credits
-    {
-        font-size: 9px;
-    }
-
-    .reset-view
-    {
-        bottom: 64px;
-    }
 }
