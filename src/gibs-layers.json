@@ -84,7 +84,7 @@
   "start": "2026-11-15",
   "end": "2026-11-15",
   "static": false,
-  "coveragePercent": 26.9,
+  "coveragePercent": 13.9,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -106,7 +106,7 @@
       "Flood"
      ],
      [
-      "repeating-linear-gradient(45deg, #969696 0 3px, transparent 3px 6px)",
+      "rgba(150, 150, 150, 0.45)",
       "No data (clouds)"
      ]
     ]
