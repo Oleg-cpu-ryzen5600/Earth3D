@@ -57,7 +57,7 @@ LAYERS = [
          category="Air quality", icon="NO₂", icon_text=True, name="Nitrogen dioxide",
          description="Air pollution from traffic, industry and power plants (TROPOMI on Sentinel-5P). Cities stand out clearly."),
     dict(id="so2", layers=["TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"], days=5, width=2048, soft=True, smooth=2, out=4096, min_frac=0.12, sparse=True,
-         colors=["#6a1b9a", "#d81b60", "#ff6d00", "#ffea00"],
+         colors=["#e040fb", "#ff4081", "#ff9100", "#ffea00"], grow=3,
          category="Air quality", icon="SO₂", icon_text=True, name="Sulfur dioxide",
          description="Gas released by volcanoes, coal power plants and smelters (TROPOMI on Sentinel-5P)."),
     dict(id="aerosols", layers=["MODIS_Combined_Value_Added_AOD"], days=3, width=2048, soft=True, smooth=3, out=4096, min_frac=0.12,
@@ -285,6 +285,9 @@ def mosaic_soft(layers, width, end, days, pal, cfg):
         weak = (total < cut) | (hits < cfg.get("min_days", 2))
         total[weak] = 0
         count[weak] = 0
+        for _ in range(cfg.get("grow", 0)):    # small sources grow into blobs visible from orbit
+            total = np.maximum.reduce([total, *shifts(total)])
+            count = np.maximum.reduce([count, *shifts(count)])
     has = (count > 0).astype(np.float64)
     r = int(cfg.get("smooth", 1))
     w, t, p = count, total, has
