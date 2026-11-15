@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""Bake additional data layers from NASA GIBS (WMS, EPSG:4326) into WebP textures + a manifest.
+
+For every layer in LAYERS:
+  * the latest date comes from the GIBS capabilities (layers without a time dimension are static);
+  * the last `days` daily images are fetched and merged as a "latest valid pixel" mosaic
+    (newest data wins, older days fill the gaps between satellite orbits);
+  * the legend (units, colour scale or classes) is read from the layer's GIBS colour map;
+  * src/textures/gibs/<id>.webp and an entry in src/gibs-layers.json are written.
+
+The site reads src/gibs-layers.json and shows one card per layer (loaded only when switched on).
+
+Usage:
+    python scripts/bake_gibs_layers.py [--only id1,id2]
+"""
+import argparse
+import datetime as dt
+import io
+import json
+import re
+import sys
+import time
+import urllib.request
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
+WMS = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi"
+CAPS = "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/1.0.0/WMTSCapabilities.xml"
+ROOT = Path(__file__).resolve().parent.parent
+OUT_DIR = ROOT / "src" / "textures" / "gibs"
+MANIFEST = ROOT / "src" / "gibs-layers.json"
+UA = {"User-Agent": "earth3d-gibs-baker"}
+
+# id, GIBS layer(s), days to merge, texture width, lossless, category, icon, name, description, extra
+LAYERS = [
+    # --- Water & radar
+    dict(id="soil_moisture", layers=["SMAP_L3_Passive_Day_Soil_Moisture"], days=3, width=2048,
+         category="Water & radar", icon="🌱", name="Soil moisture (SMAP)",
+         description="Water in the top 5 cm of soil, measured by the SMAP L-band radiometer — an independent check of the radar water layer."),
+    dict(id="surface_water", layers=["OPERA_L3_Dynamic_Surface_Water_Extent-Sentinel-1"], days=12, width=4096, lossless=True,
+         category="Water & radar", icon="🌊", name="Surface water from radar",
+         description="Open water (rivers, lakes, flooded land) detected in Sentinel-1 radar images by NASA OPERA."),
+    dict(id="floods", layers=["MODIS_Combined_Flood_3-Day"], days=1, width=4096, lossless=True,
+         category="Water & radar", icon="🚩", name="Floods (last 3 days)",
+         description="Flooded areas compared with normal water extent, from MODIS on Terra and Aqua."),
+    dict(id="nisar_tracks", layers=["OrbitTracks_NISAR_Ascending", "OrbitTracks_NISAR_Descending"], days=1, width=4096,
+         lossless=True, category="Water & radar", icon="🛰️", name="NISAR orbit tracks",
+         description="Where the NISAR radar satellite flies over the Earth during one day (ascending and descending passes)."),
+    # --- Air
+    dict(id="no2", layers=["TROPOMI_L2_Nitrogen_Dioxide_Tropospheric_Column"], days=3, width=4096,
+         category="Air quality", icon="NO₂", icon_text=True, name="Nitrogen dioxide",
+         description="Air pollution from traffic, industry and power plants (TROPOMI on Sentinel-5P). Cities stand out clearly."),
+    dict(id="so2", layers=["TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"], days=3, width=4096,
+         category="Air quality", icon="SO₂", icon_text=True, name="Sulfur dioxide",
+         description="Gas released by volcanoes, coal power plants and smelters (TROPOMI on Sentinel-5P)."),
+    dict(id="aerosols", layers=["MODIS_Combined_Value_Added_AOD"], days=3, width=2048,
+         category="Air quality", icon="🌫️", name="Aerosols (dust, smoke, haze)",
+         description="How much dust, smoke and haze is in the air (aerosol optical depth, MODIS)."),
+    dict(id="fires", layers=["VIIRS_NOAA20_Thermal_Anomalies_375m_All"], days=3, width=4096, lossless=True,
+         category="Air quality", icon="🔥", name="Active fires (last 3 days)",
+         description="Hot spots detected by the VIIRS instrument on NOAA-20: wildfires, crop burning, gas flares."),
+    # --- Temperature, rain & ice
+    dict(id="sst", layers=["GHRSST_L4_MUR_Sea_Surface_Temperature"], days=1, width=4096,
+         category="Temperature, rain & ice", icon="🌡️", name="Sea surface temperature",
+         description="Temperature of the ocean surface, gap-free analysis of several satellites (GHRSST MUR)."),
+    dict(id="sst_anomaly", layers=["GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies"], days=1, width=4096,
+         category="Temperature, rain & ice", icon="📈", name="Sea temperature anomaly",
+         description="How much warmer (red) or colder (blue) the ocean is than usual for this time of year."),
+    dict(id="land_temp", layers=["MODIS_Terra_L3_Land_Surface_Temp_8Day_Day"], days=1, width=4096,
+         category="Temperature, rain & ice", icon="🔆", name="Land surface temperature",
+         description="Daytime temperature of the ground, 8-day average from MODIS on Terra."),
+    dict(id="precipitation", layers=["IMERG_Precipitation_Rate"], days=1, width=2048,
+         category="Temperature, rain & ice", icon="🌧️", name="Rain and snowfall rate",
+         description="Precipitation from the GPM satellite constellation (IMERG)."),
+    dict(id="snow", layers=["MODIS_Terra_L3_NDSI_Snow_Cover_Daily"], days=2, width=4096,
+         category="Temperature, rain & ice", icon="❄️", name="Snow cover",
+         description="Where the ground is covered with snow (MODIS on Terra)."),
+    dict(id="sea_ice", layers=["GHRSST_L4_MUR_Sea_Ice_Concentration"], days=1, width=4096,
+         category="Temperature, rain & ice", icon="🧊", name="Sea ice",
+         description="Share of the sea surface covered by ice."),
+    # --- Land
+    dict(id="vegetation", layers=["VIIRS_NOAA20_NDVI_8Day"], days=1, width=4096,
+         category="Land & hazards", icon="🌳", name="Vegetation (NDVI)",
+         description="How green and dense the plants are, 8-day composite from VIIRS on NOAA-20."),
+    dict(id="landslide_hazard", layers=["NDH_Landslide_Hazard_Distribution_2000"], days=1, width=4096,
+         category="Land & hazards", icon="⛰️", name="Landslide hazard",
+         description="Where landslides are likely (NASA SEDAC natural disaster hotspots, static)."),
+    dict(id="flood_hazard", layers=["NDH_Flood_Hazard_Frequency_Distribution_1985-2003"], days=1, width=4096,
+         category="Land & hazards", icon="⛈️", name="Flood hazard",
+         description="How often floods happened in 1985–2003 (NASA SEDAC natural disaster hotspots, static)."),
+    dict(id="drought_hazard", layers=["NDH_Drought_Hazard_Frequency_Distribution_1980-2000"], days=1, width=4096,
+         category="Land & hazards", icon="🏜️", name="Drought hazard",
+         description="How often droughts happened in 1980–2000 (NASA SEDAC natural disaster hotspots, static)."),
+    # --- Night
+    dict(id="night_lights", layers=["VIIRS_Black_Marble"], days=1, width=4096, opacity=1.0, night=True,
+         category="Night", icon="🌃", name="Night lights",
+         description="The Earth at night (VIIRS Black Marble): city lights. Switches the globe to night mode."),
+]
+
+
+def http_get(url, tries=4):
+    for attempt in range(tries):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=180) as r:
+                return r.read()
+        except Exception as e:
+            if attempt == tries - 1:
+                raise
+            print(f"  retry {attempt + 1}: {e}", file=sys.stderr)
+            time.sleep(2 ** attempt)
+
+
+def layer_info(caps, layer):
+    """Default date (or None for static layers) and colour map URL from the capabilities."""
+    i = caps.find(f"<ows:Identifier>{layer}</ows:Identifier>")
+    if i < 0:
+        raise SystemExit(f"Layer {layer} not found in GIBS capabilities")
+    block = caps[caps.rfind("<Layer>", 0, i):caps.find("</Layer>", i)]
+    m = re.search(r"<Default>(\d{4}-\d{2}-\d{2})", block)
+    cm = re.search(r"colormap/1\.3['\"][^>]*href=['\"]([^'\"]+)['\"]", block) or \
+        re.search(r"href=['\"]([^'\"]+colormaps/v1\.3/[^'\"]+)['\"]", block)
+    title = re.search(r"<ows:Title[^>]*>([^<]+)</ows:Title>", block)
+    return (dt.date.fromisoformat(m.group(1)) if m else None,
+            cm.group(1) if cm else None,
+            title.group(1).strip() if title else layer)
+
+
+def wms(layer, width, day):
+    url = (f"{WMS}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS={layer}&STYLES="
+           f"&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH={width}&HEIGHT={width // 2}"
+           f"&FORMAT=image/png&TRANSPARENT=true")
+    if day:
+        url += f"&TIME={day.isoformat()}"
+    return np.asarray(Image.open(io.BytesIO(http_get(url))).convert("RGBA"))
+
+
+def mosaic(layers, width, end, days):
+    """Latest-valid-pixel mosaic of several days (and several layers drawn on top of each other)."""
+    out = np.zeros((width // 2, width, 4), np.uint8)
+    used = []
+    dates = [end - dt.timedelta(days=k) for k in range(days)] if end else [None]
+    for day in dates:
+        for layer in layers:
+            img = wms(layer, width, day)
+            fill = (img[..., 3] > 0) & (out[..., 3] == 0)
+            if fill.any():
+                out[fill] = img[fill]
+                if day and day not in used:
+                    used.append(day)
+    return out, sorted(used)
+
+
+def legend(colormap_url):
+    """Legend blocks from a GIBS v1.3 colour map: continuous -> gradient, classification -> classes."""
+    if not colormap_url:
+        return []
+    root = ET.fromstring(http_get(colormap_url))
+    blocks = []
+    for cmap in root.iter("ColorMap"):
+        title = cmap.get("title") or ""
+        if title.lower().startswith("no data"):
+            continue
+        transparent = {e.get("rgb") for e in cmap.iter("ColorMapEntry") if e.get("transparent") == "true"}
+        leg = cmap.find("Legend")
+        if leg is None:
+            continue
+        entries = [e for e in leg.iter("LegendEntry") if e.get("rgb") not in transparent]
+        if not entries:
+            continue
+        hexc = lambda rgb: "#%02x%02x%02x" % tuple(int(v) for v in rgb.split(",")[:3])
+        if leg.get("type") == "continuous":
+            idx = np.linspace(0, len(entries) - 1, min(9, len(entries))).round().astype(int)
+            blocks.append({
+                "type": "gradient", "title": title, "units": cmap.get("units") or "",
+                "colors": [hexc(entries[i].get("rgb")) for i in idx],
+                "min": leg.get("minLabel") or entries[0].get("tooltip", ""),
+                "max": leg.get("maxLabel") or entries[-1].get("tooltip", ""),
+            })
+        else:
+            items = [[hexc(e.get("rgb")), e.get("tooltip") or ""] for e in entries][:8]
+            blocks.append({"type": "classes", "title": title, "units": cmap.get("units") or "", "items": items})
+    return blocks
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--only", default="", help="comma-separated layer ids to rebuild")
+    args = ap.parse_args()
+    only = {s for s in args.only.split(",") if s}
+
+    caps = http_get(CAPS).decode("utf-8")
+    old = {m["id"]: m for m in json.loads(MANIFEST.read_text())} if MANIFEST.exists() else {}
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    manifest = []
+    for cfg in LAYERS:
+        if only and cfg["id"] not in only and cfg["id"] in old:
+            manifest.append(old[cfg["id"]])
+            continue
+        t0 = time.time()
+        end, cmap_url, title = layer_info(caps, cfg["layers"][0])
+        img, used = mosaic(cfg["layers"], cfg["width"], end, cfg["days"])
+        cover = float((img[..., 3] > 0).mean() * 100)
+        path = OUT_DIR / f"{cfg['id']}.webp"
+        if cfg.get("lossless"):
+            Image.fromarray(img, "RGBA").save(path, "WEBP", lossless=True, method=4)
+        else:
+            Image.fromarray(img, "RGBA").save(path, "WEBP", quality=85, method=4)
+        entry = {
+            "id": cfg["id"], "category": cfg["category"], "icon": cfg["icon"],
+            "iconIsText": bool(cfg.get("icon_text")), "name": cfg["name"], "description": cfg["description"],
+            "gibsLayers": cfg["layers"], "gibsTitle": title,
+            "start": used[0].isoformat() if used else None, "end": used[-1].isoformat() if used else None,
+            "static": end is None, "coveragePercent": round(cover, 1),
+            "opacity": cfg.get("opacity", 0.85), "night": bool(cfg.get("night")),
+            "legend": legend(cmap_url),
+            "file": f"{cfg['id']}.webp",
+        }
+        manifest.append(entry)
+        print(f"{cfg['id']:18s} {entry['start']} .. {entry['end']}  cover {cover:5.1f}%  "
+              f"{path.stat().st_size // 1024:5d} KB  legend {len(entry['legend'])}  {time.time() - t0:.0f}s", flush=True)
+    MANIFEST.write_text(json.dumps(manifest, indent=1, ensure_ascii=False) + "\n")
+    print(f"Wrote {MANIFEST.relative_to(ROOT)} ({len(manifest)} layers)")
+
+
+if __name__ == "__main__":
+    main()

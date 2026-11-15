@@ -17,6 +17,9 @@ const ozoneMeta = Object.values(import.meta.glob('./ozone-meta.json', { eager: t
 // Radiation background (Safecast) baked by scripts/bake_radiation.py; optional in the same way
 const radiationUrl = Object.values(import.meta.glob('./textures/radiation.webp', { eager: true, query: '?url', import: 'default' }))[0] ?? null;
 const radiationMeta = Object.values(import.meta.glob('./radiation-meta.json', { eager: true, import: 'default' }))[0] ?? null;
+// More NASA GIBS layers baked by scripts/bake_gibs_layers.py (manifest + one texture per layer); optional
+const gibsManifest = Object.values(import.meta.glob('./gibs-layers.json', { eager: true, import: 'default' }))[0] ?? [];
+const gibsUrls = import.meta.glob('./textures/gibs/*.webp', { eager: true, query: '?url', import: 'default' });
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -208,7 +211,8 @@ const createSun = () =>
     sun.renderOrder = 0;
     return sun;
 };
-scene.add(createSun());
+const sun = createSun();
+scene.add(sun);
 
 // ---------------------------------------------------------------------------
 // Globe (tilted group)
@@ -580,6 +584,7 @@ const sarStats = sarMeta.stats;
 const DATA_LAYERS = [
     {
         id: 'water',
+        category: 'Our processed data',
         icon: '💧',
         name: 'Surface water & moisture',
         description: 'Radar satellites see how wet and rough the ground is, even through clouds and at night.',
@@ -598,6 +603,7 @@ const DATA_LAYERS = [
     },
     {
         id: 'ozone',
+        category: 'Our processed data',
         icon: 'O₃',
         iconIsText: true,
         name: 'Ozone layer',
@@ -622,6 +628,7 @@ const DATA_LAYERS = [
     },
     {
         id: 'radiation',
+        category: 'Our processed data',
         icon: '☢️',
         name: 'Radiation background',
         description: 'Gamma dose rate near the ground, measured by volunteers with Safecast dosimeters. Only measured places are coloured.',
@@ -646,30 +653,116 @@ const DATA_LAYERS = [
     },
 ];
 
+// Layers from the GIBS manifest: one card each, texture loaded only when switched on
+gibsManifest.forEach((m) =>
+{
+    const url = gibsUrls[`./textures/gibs/${m.file}`];
+    if (!url) return;
+    const period = m.static ? 'static map' : (m.start === m.end ? m.end : `${m.start} – ${m.end}`);
+    DATA_LAYERS.push({
+        id: m.id,
+        category: m.category,
+        icon: m.icon,
+        iconIsText: m.iconIsText,
+        name: m.name,
+        description: m.description,
+        url,
+        enabled: false,
+        opacity: m.opacity ?? 0.85,
+        night: m.night,
+        legendBlocks: m.legend,
+        details: `${period} · NASA GIBS · ${m.gibsTitle}`,
+    });
+});
+
+// Night mode (night lights layer): dark globe, no Sun, dimmer atmosphere
+let nightActive = false;
+const setNightMode = (on) =>
+{
+    if (on === nightActive) return;
+    nightActive = on;
+    earth.material.color.setScalar(on ? 0.06 : 1);
+    sun.visible = !on;
+    atmosphere.material.opacity = on ? 0.35 : 1;
+    requestRender();
+};
+
 const layerList = document.querySelector('#layer-list');
+let currentCategory = null;
+
+const createOverlay = (layer, index, texture) =>
+{
+    layer.material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,           // drawn on top of the surface without z-fighting
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1 - index,
+    });
+    layer.mesh = new THREE.Mesh(earth.geometry, layer.material);
+    layer.mesh.renderOrder = index;
+    layer.mesh.visible = false;
+    globe.add(layer.mesh);
+};
+
+const appendLegendBlocks = (card, blocks) =>
+{
+    blocks.forEach((block) =>
+    {
+        if (block.type === 'gradient')
+        {
+            const scale = document.createElement('div');
+            scale.className = 'scale';
+            scale.innerHTML = `
+                <div class="scale-title"></div>
+                <div class="scale-bar"></div>
+                <div class="scale-ticks"><span></span><span></span></div>`;
+            scale.querySelector('.scale-title').textContent = block.title + (block.units ? `, ${block.units}` : '');
+            scale.querySelector('.scale-bar').style.background = `linear-gradient(to right, ${block.colors.join(', ')})`;
+            const ticks = scale.querySelectorAll('.scale-ticks span');
+            ticks[0].textContent = block.min;
+            ticks[1].textContent = block.max;
+            card.append(scale);
+        }
+        else if (block.items?.length)
+        {
+            const legend = document.createElement('ul');
+            legend.className = 'legend';
+            block.items.forEach(([color, label]) =>
+            {
+                const item = document.createElement('li');
+                const swatch = document.createElement('i');
+                swatch.style.background = color;
+                item.append(swatch, label);
+                legend.append(item);
+            });
+            card.append(legend);
+        }
+    });
+};
 
 DATA_LAYERS.forEach((layer, index) =>
 {
     const available = Boolean(layer.url);
-
-    // 3D overlay
-    if (available)
+    // Layers switched on at start are loaded with the page; the others only when switched on
+    layer.lazy = !layer.enabled;
+    if (available && !layer.lazy)
     {
-        layer.material = new THREE.MeshBasicMaterial({
-            map: loadTexture(layer.url, true),
-            transparent: true,
-            depthWrite: false,
-            polygonOffset: true,           // drawn on top of the surface without z-fighting
-            polygonOffsetFactor: -1,
-            polygonOffsetUnits: -1 - index,
-        });
+        createOverlay(layer, index, loadTexture(layer.url, true));
         layer.baseTexture = layer.material.map;
-        layer.mesh = new THREE.Mesh(earth.geometry, layer.material);
-        layer.mesh.renderOrder = index;
-        globe.add(layer.mesh);
     }
 
-    // Card in the panel
+    if (layer.category !== currentCategory)
+    {
+        currentCategory = layer.category;
+        const heading = document.createElement('h2');
+        heading.className = 'layer-group';
+        heading.textContent = currentCategory;
+        layerList.append(heading);
+    }
+
+    // Card in the panel: header always visible, body (description, slider, legend) only when on
     const card = document.createElement('section');
     card.className = 'layer' + (available ? '' : ' layer--soon');
     card.innerHTML = `
@@ -684,12 +777,15 @@ DATA_LAYERS.forEach((layer, index) =>
                 <span class="switch-track"></span>
             </label>
         </div>
-        <p class="layer-desc"></p>
-        <div class="layer-opacity">
-            <span>Visibility</span>
-            <input type="range" min="0" max="1" step="0.05">
-            <output></output>
+        <div class="layer-body">
+            <p class="layer-desc"></p>
+            <div class="layer-opacity">
+                <span>Visibility</span>
+                <input type="range" min="0" max="1" step="0.05">
+                <output></output>
+            </div>
         </div>`;
+    const body = card.querySelector('.layer-body');
     card.querySelector('.layer-icon').textContent = layer.icon;
     card.querySelector('.layer-name').textContent = layer.name;
     card.querySelector('.layer-desc').textContent = layer.description;
@@ -708,7 +804,7 @@ DATA_LAYERS.forEach((layer, index) =>
             item.append(swatch, label);
             legend.append(item);
         });
-        card.append(legend);
+        body.append(legend);
     }
     if (layer.scale)
     {
@@ -735,14 +831,15 @@ DATA_LAYERS.forEach((layer, index) =>
         const labels = scale.querySelectorAll('.scale-labels span');
         labels[0].textContent = lowLabel;
         labels[1].textContent = highLabel;
-        card.append(scale);
+        body.append(scale);
     }
+    if (layer.legendBlocks) appendLegendBlocks(body, layer.legendBlocks);
     if (layer.details)
     {
         const details = document.createElement('p');
         details.className = 'layer-details';
         details.textContent = layer.details;
-        card.append(details);
+        body.append(details);
     }
 
     const toggle = card.querySelector('.switch input');
@@ -752,18 +849,56 @@ DATA_LAYERS.forEach((layer, index) =>
     toggle.disabled = !available;
     slider.value = layer.opacity;
 
+    // Lazy layers: load the texture (decoded off the main thread) when switched on, free it when off
+    const loadLazy = () =>
+    {
+        if (layer.loading || layer.material?.map) return;
+        layer.loading = true;
+        card.classList.add('layer--loading');
+        bitmapLoader.load(layer.url, (bitmap) =>
+        {
+            layer.loading = false;
+            card.classList.remove('layer--loading');
+            const texture = bitmapTexture(bitmap);
+            texture.anisotropy = maxAnisotropy;
+            if (!toggle.checked) { bitmap.close?.(); texture.dispose(); return; }
+            if (!layer.mesh) createOverlay(layer, index, texture);
+            else { layer.material.map = texture; layer.material.needsUpdate = true; }
+            update();
+        }, undefined, () =>
+        {
+            layer.loading = false;
+            card.classList.remove('layer--loading');
+        });
+    };
+    const unloadLazy = () =>
+    {
+        const map = layer.material?.map;
+        if (!map) return;
+        layer.material.map = null;
+        layer.material.needsUpdate = true;
+        map.source?.data?.close?.();
+        map.dispose();
+    };
+
     const update = () =>
     {
         const on = toggle.checked;
         slider.disabled = !on;
         card.classList.toggle('layer--off', !on);
         value.textContent = `${Math.round(Number(slider.value) * 100)}%`;
+        if (layer.lazy && available)
+        {
+            if (on) loadLazy();
+            else unloadLazy();
+        }
         if (layer.mesh)
         {
-            layer.mesh.visible = on;
+            layer.mesh.visible = on && Boolean(layer.material.map);
             layer.material.opacity = Number(slider.value);
             requestRender();
         }
+        if (layer.night) setNightMode(on && Boolean(layer.mesh?.visible));
     };
     toggle.addEventListener('change', update);
     slider.addEventListener('input', update);

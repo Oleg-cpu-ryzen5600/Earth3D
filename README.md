@@ -79,6 +79,18 @@ The files require [Earthdata Login](https://urs.earthdata.nasa.gov): add a token
 `EARTHDATA_TOKEN` (and authorize the *NASA GESDISC DATA ARCHIVE* application in your Earthdata profile), then run
 **Actions → Bake ozone texture → Run workflow**. The token expires after 60 days.
 
+## More NASA GIBS layers
+
+`scripts/bake_gibs_layers.py` (**Actions → Bake GIBS layers**) bakes 19 more layers from NASA GIBS into
+`src/textures/gibs/*.webp` plus a manifest `src/gibs-layers.json` (name, category, dates, legend):
+soil moisture (SMAP), surface water from Sentinel-1 radar (OPERA DSWx), floods (MODIS), NISAR orbit tracks,
+nitrogen dioxide and sulfur dioxide (TROPOMI), aerosols (MODIS), active fires (VIIRS), sea surface temperature and
+its anomaly (GHRSST MUR), land surface temperature (MODIS), precipitation (IMERG), snow cover (MODIS), sea ice,
+vegetation NDVI (VIIRS), landslide / flood / drought hazard (SEDAC) and night lights (VIIRS Black Marble).
+For each layer the latest days are merged as a "latest valid pixel" mosaic (fills gaps between orbits) and the legend
+is taken from the GIBS colour map. The site shows them grouped by topic; a layer's texture is downloaded only when it
+is switched on and freed when switched off. **Night lights** switches the globe to night mode (dark map, no Sun).
+
 ## Radiation data
 
 `scripts/bake_radiation.py` builds `src/textures/radiation.webp` from the complete **Safecast** radiation dataset

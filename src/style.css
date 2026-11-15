@@ -131,11 +131,44 @@ html, body
 }
 
 /* ------------------------------------------------------------------ layer card */
+.layer-group
+{
+    margin: 12px 2px 6px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.layer-group:first-child
+{
+    margin-top: 0;
+}
+
+.layer--off .layer-body
+{
+    display: none;                 /* switched-off cards show only their header */
+}
+
+.layer--loading .layer-name::after
+{
+    content: " · loading…";
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 11px;
+}
+
+.scale-title
+{
+    margin-bottom: 3px;
+}
+
 
 .layer
 {
-    padding: 10px;
-    margin-bottom: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 10px;
