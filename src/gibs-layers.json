@@ -188,7 +188,7 @@
   "start": "2026-11-09",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 0.1,
+  "coveragePercent": 0.3,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -197,9 +197,9 @@
     "title": "Sulfur Dioxide",
     "units": "DU",
     "colors": [
-     "#6a1b9a",
-     "#d81b60",
-     "#ff6d00",
+     "#e040fb",
+     "#ff4081",
+     "#ff9100",
      "#ffea00"
     ],
     "min": "< 2.0",
