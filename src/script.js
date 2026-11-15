@@ -591,7 +591,7 @@ const DATA_LAYERS = [
         url: sarUrl,
         hiUrl: sarHiUrl,                 // 8192 px version for close-ups
         hiWidth: 8192,
-        enabled: true,
+        enabled: false,                  // the globe starts without data; every layer is switched on by the user
         opacity: 1,
         details: `${sarMeta.start} – ${sarMeta.end} · NISAR + Sentinel-1`
             + (sarStats ? ` (${sarStats.nisarSharePercent}% / ${sarStats.sentinel1SharePercent}%)` : ''),
@@ -906,6 +906,7 @@ DATA_LAYERS.forEach((layer, index) =>
             if (!toggle.checked) { bitmap.close?.(); texture.dispose(); return; }
             if (!layer.mesh) createOverlay(layer, index, texture);
             else { layer.material.map = texture; layer.material.needsUpdate = true; }
+            layer.baseTexture = texture;
             update();
         }, undefined, () =>
         {
@@ -915,12 +916,15 @@ DATA_LAYERS.forEach((layer, index) =>
     };
     const unloadLazy = () =>
     {
-        const map = layer.material?.map;
-        if (!map) return;
+        // free the base texture and, for the water layer, the close-up version too
+        const textures = new Set([layer.material?.map, layer.baseTexture, layer.hiTexture].filter(Boolean));
+        if (!textures.size) return;
         layer.material.map = null;
         layer.material.needsUpdate = true;
-        map.source?.data?.close?.();
-        map.dispose();
+        textures.forEach((texture) => { texture.source?.data?.close?.(); texture.dispose(); });
+        layer.baseTexture = null;
+        layer.hiTexture = null;
+        layer.hiActive = false;
     };
 
     const update = () =>
@@ -967,7 +971,7 @@ const updateOverlayDetail = () =>
     const need = texelsNeeded();
     DATA_LAYERS.forEach((layer) =>
     {
-        if (!layer.hiUrl || !layer.mesh) return;
+        if (!layer.hiUrl || !layer.mesh || !layer.baseTexture) return;
         const baseWidth = layer.baseTexture.image?.width || 4096;
         const wantHi = layer.mesh.visible && need > baseWidth * (layer.hiActive ? 0.9 : 1.2);
         if (wantHi && !layer.hiTexture && !layer.hiLoading)
