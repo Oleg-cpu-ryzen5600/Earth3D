@@ -46,7 +46,7 @@ LAYERS = [
          category="Water & radar", icon="🌊", name="Surface water from radar",
          description="Open water (rivers, lakes, flooded land) detected in Sentinel-1 radar images by NASA OPERA."),
     dict(id="floods", layers=["MODIS_Combined_Flood_3-Day"], days=1, width=4096, lossless=True,
-         hatch={"#afafaf": "No data (clouds)"},
+         hatch={"#afafaf": "No data (clouds)"}, land_only=True,
          category="Water & radar", icon="🚩", name="Floods (last 3 days)",
          description="Flooded areas compared with normal water extent, from MODIS on Terra and Aqua."),
     dict(id="nisar_tracks", layers=["OrbitTracks_NISAR_Ascending", "OrbitTracks_NISAR_Descending"], days=1, width=4096,
@@ -389,14 +389,11 @@ def match(img, h, tol=12):
 
 
 def hatch(img, colors):
-    """Areas without data become semi-transparent grey diagonal stripes."""
-    hh, ww = img.shape[:2]
-    yy, xx = np.mgrid[0:hh, 0:ww]
-    stripe = ((xx + yy) // 5) % 2 == 0
+    """Areas without data become a light, even grey veil (stripes in the texture flickered on the globe)."""
     for h in colors:
         m = match(img, h)
         img[m, :3] = 150
-        img[m, 3] = np.where(stripe[m], 120, 45)
+        img[m, 3] = 70
     return img
 
 
@@ -476,7 +473,7 @@ def layer_legend(cmap_url, cfg):
             hatched = {k.lower(): v for k, v in cfg.get("hatch", {}).items()}
             b["items"] = [[recolor.get(c, c), lab] for c, lab in b["items"]]
             b["items"] = [[c, lab] for c, lab in b["items"] if c not in hatched] + \
-                [["repeating-linear-gradient(45deg, #969696 0 3px, transparent 3px 6px)", lab] for lab in hatched.values()]
+                [["rgba(150, 150, 150, 0.45)", lab] for lab in hatched.values()]
     if cfg.get("land_ice"):
         blocks.append({"type": "classes", "title": "", "units": "", "items": [[LAND_ICE, "Land ice (ice sheet)"]]})
     return blocks
