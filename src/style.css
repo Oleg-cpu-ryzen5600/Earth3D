@@ -74,10 +74,16 @@ html, body
 
 .panel-header
 {
+    position: sticky;              /* stays visible while the list scrolls */
+    top: 0;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
+    background: rgba(10, 16, 28, 0.96);
+    border-radius: 12px 12px 0 0;
+    cursor: pointer;               /* the whole header opens / closes the panel */
 }
 
 .panel-header h1
@@ -102,6 +108,16 @@ html, body
 {
     background: rgba(255, 255, 255, 0.08);
     color: var(--text);
+}
+
+.panel--collapsed
+{
+    overflow: hidden;              /* stops leftover (momentum) scrolling that could hide the header */
+}
+
+.panel--collapsed .panel-header
+{
+    border-radius: 12px;
 }
 
 .panel--collapsed .panel-body

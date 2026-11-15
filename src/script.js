@@ -1013,8 +1013,13 @@ const setCollapsed = (collapsed) =>
     panel.classList.toggle('panel--collapsed', collapsed);
     panelToggle.setAttribute('aria-expanded', String(!collapsed));
     panelToggle.textContent = collapsed ? '▸' : '▾';
+    // back to the top, also after iOS momentum scrolling has finished, so the header is never scrolled away
+    panel.scrollTop = 0;
+    if (collapsed) requestAnimationFrame(() => { panel.scrollTop = 0; });
 };
-panelToggle.addEventListener('click', () => setCollapsed(!panel.classList.contains('panel--collapsed')));
+// a tap anywhere on the header (title or arrow) opens / closes the panel
+document.querySelector('.panel-header').addEventListener('click', () =>
+    setCollapsed(!panel.classList.contains('panel--collapsed')));
 const smallScreen = window.matchMedia('(max-width: 600px)');
 setCollapsed(smallScreen.matches);
 
