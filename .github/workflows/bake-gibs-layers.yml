@@ -1,0 +1,44 @@
+name: Bake GIBS layers
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Comma-separated layer ids to rebuild (empty = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bake-gibs-layers
+  cancel-in-progress: false
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pillow numpy
+
+      - name: Bake data layers from NASA GIBS
+        run: python -u scripts/bake_gibs_layers.py --only "${{ inputs.only }}"
+
+      - name: Commit textures
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/textures/gibs src/gibs-layers.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Bake GIBS data layers"
+          git push
