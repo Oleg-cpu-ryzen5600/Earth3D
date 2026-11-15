@@ -149,7 +149,7 @@
   "start": "2026-11-11",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 0.9,
+  "coveragePercent": 5.4,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -188,7 +188,7 @@
   "start": "2026-11-11",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 0.0,
+  "coveragePercent": 0.1,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -633,7 +633,7 @@
   "start": null,
   "end": null,
   "static": true,
-  "coveragePercent": 11.0,
+  "coveragePercent": 3.5,
   "opacity": 0.85,
   "night": false,
   "legend": [
