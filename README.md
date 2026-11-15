@@ -1,6 +1,11 @@
 # 🌍 Earth3D
 
-Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/) — standard materials only, no custom shaders.
+Interactive 3D Earth in the browser with NASA satellite data layers, built with [Three.js](https://threejs.org/) —
+standard materials only, no custom shaders. Made for the **NASA Space Apps Challenge 2026 — "Dancing with the SARs"**.
+
+**Live site: [earth3d-jade.vercel.app](https://earth3d-jade.vercel.app)**
+
+The globe starts without data: every layer is switched on from the panel on the right.
 
 - Evenly lit globe (no day/night cycle)
 - **Earth texture with 3 levels of detail** (2K → 4K → 8K, NASA Blue Marble): sharper imagery is loaded automatically as you zoom in
@@ -8,7 +13,9 @@ Interactive 3D Earth in the browser, built with [Three.js](https://threejs.org/)
 - Atmosphere glow: a camera-facing ring around the silhouette with per-vertex alpha
 - 23.5° axial tilt, no automatic rotation — the globe moves only with the user
 - Orbit camera: drag to rotate, scroll to zoom; the closest zoom is limited to ~5 km of ground per screen pixel (the detail of the 8K map and the enhanced data layers), so the merged data never looks blocky. Optional close-up NASA GIBS map tiles (`CLOSE_UP_TILES` in `src/script.js`) are switched off
-- Data layer panel: a card per layer (💧 surface water & moisture, O₃ ozone layer, ☢️ radiation background) with an on/off switch, a visibility slider, a short plain-language description and a legend; layers without data yet are shown as *Coming soon*. New data is added by setting the layer's texture `url` in `DATA_LAYERS` (`src/script.js`)
+- **22 data layers** in five groups (water & radar, air quality, temperature/rain/ice, land & hazards, night): our own processed SAR, ozone and radiation layers plus 19 layers from NASA GIBS. Each card has an on/off switch, a visibility slider, a plain-language description, a legend and the data dates; a texture is downloaded only when its layer is switched on
+- **Night lights** fade the globe into night mode (dark map, Sun fades out, city lights fade in)
+- Panel on the right with the data credits at its end; on phones a tap on the free part of the screen closes it
 - **Reset view** button: smoothly flies back to the start position (north up, initial zoom)
 - Double click — fullscreen
 
@@ -33,33 +40,34 @@ npm run preview  # serve the built dist/ locally
 
 ## Deployment
 
-Pushing to `main` builds the project and publishes it to **GitHub Pages** via
-`.github/workflows/deploy.yml`.
+The site is hosted on **Vercel**: every push to `main` (including the commits made by the data workflows) is built
+(`npm run build`) and published automatically at [earth3d-jade.vercel.app](https://earth3d-jade.vercel.app).
 
-One-time setup: in the repository go to **Settings → Pages → Build and deployment → Source** and select **GitHub Actions**.
-The site will then be available at `https://<user>.github.io/<repo>/`.
-
-The build uses a relative base path (`base: './'`), so `dist/` also works on Vercel, Netlify or any static host.
+The build uses a relative base path (`base: './'`), so `dist/` also works on any static host.
 
 ## Project structure
 
 ```
 src/
   index.html
-  script.js          # scene, globe, atmosphere ring, controls, render loop
+  script.js             # scene, globe, atmosphere ring, data layers, panel, controls, render loop
   style.css
   textures/
-    earth_2k.webp    # base map, far (loaded at start)
-    earth_4k.webp    # base map, middle (on demand)
-    earth_8k.webp    # base map, close (on demand)
-    sar.webp         # SAR overlay (with alpha), generated
-  sar-meta.json      # sources, dates and fusion stats of sar.webp, generated
+    earth_2k/4k/8k.webp # base map in three levels of detail
+    sar.webp            # SAR composite (with alpha), generated; sar_hi.webp = 8192 px version for close-ups
+    ozone.webp          # ozone layer, generated
+    radiation.webp      # radiation background, generated
+    gibs/*.webp         # 19 NASA GIBS layers, generated
+  sar-meta.json, ozone-meta.json, radiation-meta.json, gibs-layers.json   # dates, sources, legends
 scripts/
-  bake_sar.py        # builds sar.webp from NASA GIBS
-  bake_earth.py      # builds earth_2k/4k/8k.webp from NASA GIBS Blue Marble
-  bake_ozone.py      # builds ozone.webp from NASA OMI/Aura OMTO3d (needs EARTHDATA_TOKEN)
-  bake_radiation.py  # builds radiation.webp from the Safecast dataset (CC0)
-vercel.json          # cache headers for hashed assets
+  bake_earth.py         # base map from NASA GIBS Blue Marble
+  bake_sar.py           # multi-sensor SAR composite (NISAR + Sentinel-1) from NASA GIBS
+  upscale_overlays.py   # sar_hi.webp for close-ups
+  bake_ozone.py         # ozone from NASA OMI/Aura OMTO3d (needs EARTHDATA_TOKEN)
+  bake_radiation.py     # radiation from the Safecast dataset (CC0)
+  bake_gibs_layers.py   # the 19 NASA GIBS layers
+.github/workflows/      # one "Bake …" workflow per script (Actions → Run workflow)
+vercel.json             # cache headers for hashed assets
 ```
 
 ## Earth base map
@@ -139,7 +147,13 @@ We acknowledge the use of imagery provided by services from NASA's Global Imager
 ## Credits
 
 - Original project: [Earth3D by mitchcamza](https://github.com/mitchcamza/Earth3D) (MIT)
-- Earth base map: NASA Blue Marble via [NASA GIBS](https://www.earthdata.nasa.gov/gibs)
+- Satellite data and imagery: [NASA GIBS](https://www.earthdata.nasa.gov/gibs) — NASA Blue Marble, NISAR (NASA-ISRO),
+  Sentinel-1 / NASA OPERA, SMAP, MODIS (Terra, Aqua), VIIRS (NOAA-20, Suomi NPP), GHRSST MUR, GPM IMERG, TROPOMI (Sentinel-5P)
+- Ozone: NASA OMI/Aura OMTO3d, [NASA GES DISC](https://disc.gsfc.nasa.gov)
+- Radiation: [Safecast](https://safecast.org) (CC0)
+- Natural Disaster Hotspots: CHRR & CIESIN, Columbia University (2005), NASA SEDAC (CC BY)
+- Land mask: © OpenStreetMap contributors (ODbL)
+- Contains modified Copernicus Sentinel data 2026 (Sentinel-1, Sentinel-5P)
 
 ## License
 
