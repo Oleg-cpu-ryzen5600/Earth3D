@@ -237,7 +237,7 @@ const LOD_LEVELS = [
     { width: 8192, label: '8K', url: earth8kUrl, texture: null },
 ].filter((level) => level.width <= maxTextureSize && !(isTouch && level.width > 4096)); // 8K: desktop only
 
-const LOD_TEXEL_RATIO = 0.5;   // up to 2x magnification of texels is acceptable
+const LOD_TEXEL_RATIO = 1;     // ~1 texel per screen pixel (the closest view shows the 8K map at 1:1)
 const LOD_DOWN_MARGIN = 0.8;   // hysteresis: switch down only well below the threshold
 // ImageBitmapLoader decodes images off the main thread (TextureLoader decodes during the GPU upload -> stutter)
 const bitmapLoader = new THREE.ImageBitmapLoader();
@@ -460,8 +460,13 @@ const disposeTile = (key, tile) =>
     tiles.delete(key);
 };
 
+// Off: the closest zoom is limited to ~5 km per pixel (see MAX_DETAIL_KM), where the 8K map is enough
+// and the data layers still look clean. Set to true together with a smaller MAX_DETAIL_KM to stream tiles again.
+const CLOSE_UP_TILES = false;
+
 const updateTiles = () =>
 {
+    if (!CLOSE_UP_TILES) return;
     uploadReadyTiles();
     // recompute the wanted tiles at most every TILE_SELECT_INTERVAL ms (camera moves every frame)
     const now = performance.now();
@@ -924,7 +929,17 @@ const updateAtmosphere = () =>
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.enablePan = false;
-controls.minDistance = 1.05; // ~320 km above the surface (Earth radius = 1)
+// Closest zoom: one screen pixel shows about MAX_DETAIL_KM of ground in the centre of the view
+// (the resolution of the 8K map and of the enhanced data layers); depends on the window height.
+const MAX_DETAIL_KM = 5;
+const EARTH_RADIUS_KM = 6371;
+const updateMinDistance = () =>
+{
+    const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+    const altitude = (MAX_DETAIL_KM / EARTH_RADIUS_KM) * window.innerHeight / (2 * Math.tan(halfFov));
+    controls.minDistance = EARTH_RADIUS + altitude;
+};
+updateMinDistance();
 controls.maxDistance = 10;
 controls.addEventListener('change', requestRender);
 
@@ -981,6 +996,8 @@ window.addEventListener('resize', () =>
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(getPixelRatio());
+    updateMinDistance();
+    controls.update();
     requestRender();
 });
 
