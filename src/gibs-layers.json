@@ -188,7 +188,7 @@
   "start": "2026-11-09",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 24.2,
+  "coveragePercent": 0.1,
   "opacity": 0.85,
   "night": false,
   "legend": [
