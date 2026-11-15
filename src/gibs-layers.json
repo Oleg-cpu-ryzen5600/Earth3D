@@ -52,7 +52,7 @@
   "start": "2026-11-04",
   "end": "2026-11-15",
   "static": false,
-  "coveragePercent": 30.2,
+  "coveragePercent": 9.4,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -62,24 +62,12 @@
     "units": "",
     "items": [
      [
-      "#ffffff",
-      "Not Water"
-     ],
-     [
       "#0000ff",
       "Open Water"
      ],
      [
       "#00ff00",
       "Inundated Vegetation"
-     ],
-     [
-      "#c8c8c8",
-      "Height Above Nearest Drainage (HAND) masked"
-     ],
-     [
-      "#808080",
-      "Layover/shadow masked"
      ]
     ]
    }
@@ -100,7 +88,7 @@
   "start": "2026-11-15",
   "end": "2026-11-15",
   "static": false,
-  "coveragePercent": 27.0,
+  "coveragePercent": 2.6,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -120,10 +108,6 @@
      [
       "#fa1e24",
       "Flood"
-     ],
-     [
-      "#afafaf",
-      "Insufficient Data"
      ]
     ]
    }
@@ -165,7 +149,7 @@
   "start": "2026-11-11",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 69.8,
+  "coveragePercent": 0.9,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -204,7 +188,7 @@
   "start": "2026-11-11",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 5.7,
+  "coveragePercent": 0.0,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -243,7 +227,7 @@
   "start": "2026-11-12",
   "end": "2026-11-14",
   "static": false,
-  "coveragePercent": 20.5,
+  "coveragePercent": 10.1,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -593,7 +577,7 @@
   "start": null,
   "end": null,
   "static": true,
-  "coveragePercent": 9.5,
+  "coveragePercent": 3.0,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -602,10 +586,6 @@
     "title": "Landslide Hazard",
     "units": "",
     "items": [
-     [
-      "#fefefe",
-      "Negligible to Very Low"
-     ],
      [
       "#fffecc",
       "Low"
