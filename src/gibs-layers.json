@@ -481,43 +481,22 @@
   "night": false,
   "legend": [
    {
-    "type": "classes",
+    "type": "gradient",
     "title": "Normalized Difference Snow Index",
     "units": "",
-    "items": [
-     [
-      "#f0f080",
-      "1"
-     ],
-     [
-      "#f0f081",
-      "2"
-     ],
-     [
-      "#f0f082",
-      "3"
-     ],
-     [
-      "#f0f083",
-      "4"
-     ],
-     [
-      "#f0f084",
-      "5"
-     ],
-     [
-      "#f0f085",
-      "6"
-     ],
-     [
-      "#f0f086",
-      "7"
-     ],
-     [
-      "#f0f087",
-      "8"
-     ]
-    ]
+    "colors": [
+     "#f0f080",
+     "#f0f08c",
+     "#f0d285",
+     "#f0d291",
+     "#f0b48a",
+     "#f09682",
+     "#f0968e",
+     "#f07f80",
+     "#ff0000"
+    ],
+    "min": "1",
+    "max": "100"
    }
   ],
   "file": "snow.webp"
@@ -679,43 +658,22 @@
   "night": false,
   "legend": [
    {
-    "type": "classes",
+    "type": "gradient",
     "title": "Flood Hazard",
     "units": "",
-    "items": [
-     [
-      "#f5f6d9",
-      "1"
-     ],
-     [
-      "#ebeddf",
-      "2"
-     ],
-     [
-      "#e1e4e5",
-      "3"
-     ],
-     [
-      "#d7dbeb",
-      "4"
-     ],
-     [
-      "#bdc9e1",
-      "5"
-     ],
-     [
-      "#b2c4de",
-      "6"
-     ],
-     [
-      "#a8bfdb",
-      "7"
-     ],
-     [
-      "#9dbbd9",
-      "8"
-     ]
-    ]
+    "colors": [
+     "#f5f6d9",
+     "#d7dbeb",
+     "#a8bfdb",
+     "#88b2d4",
+     "#6ca4cc",
+     "#4c94c3",
+     "#3488bd",
+     "#1c7cb6",
+     "#0570b0"
+    ],
+    "min": "1",
+    "max": "≥ 26"
    }
   ],
   "file": "flood_hazard.webp"
@@ -739,43 +697,22 @@
   "night": false,
   "legend": [
    {
-    "type": "classes",
+    "type": "gradient",
     "title": "Drought Hazard",
     "units": "",
-    "items": [
-     [
-      "#fefefe",
-      "0"
-     ],
-     [
-      "#fdf5e4",
-      "1"
-     ],
-     [
-      "#fdeccb",
-      "2"
-     ],
-     [
-      "#fde4b2",
-      "3"
-     ],
-     [
-      "#fdd88d",
-      "4"
-     ],
-     [
-      "#fdc26b",
-      "5"
-     ],
-     [
-      "#fdad49",
-      "6"
-     ],
-     [
-      "#fd9828",
-      "7"
-     ]
-    ]
+    "colors": [
+     "#fefefe",
+     "#fdeccb",
+     "#fdc26b",
+     "#f38921",
+     "#e16c13",
+     "#d0590b",
+     "#bb4a08",
+     "#a63c05",
+     "#983303"
+    ],
+    "min": "0",
+    "max": "≥ 20"
    }
   ],
   "file": "drought_hazard.webp"
