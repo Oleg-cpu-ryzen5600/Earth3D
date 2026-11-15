@@ -1,0 +1,803 @@
+[
+ {
+  "id": "soil_moisture",
+  "category": "Water & radar",
+  "icon": "🌱",
+  "iconIsText": false,
+  "name": "Soil moisture (SMAP)",
+  "description": "Water in the top 5 cm of soil, measured by the SMAP L-band radiometer — an independent check of the radar water layer.",
+  "gibsLayers": [
+   "SMAP_L3_Passive_Day_Soil_Moisture"
+  ],
+  "gibsTitle": "Soil Moisture (L3, Passive, Day, Radiometer, SMAP)",
+  "start": "2026-11-10",
+  "end": "2026-11-12",
+  "static": false,
+  "coveragePercent": 14.5,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Soil Moisture",
+    "units": "cm³/cm³",
+    "colors": [
+     "#ffa200",
+     "#ffee00",
+     "#7dbe00",
+     "#009e3e",
+     "#00ffff",
+     "#0047ff",
+     "#0000bb",
+     "#101064",
+     "#505050"
+    ],
+    "min": "0.00",
+    "max": "≥ 0.60"
+   }
+  ],
+  "file": "soil_moisture.webp"
+ },
+ {
+  "id": "surface_water",
+  "category": "Water & radar",
+  "icon": "🌊",
+  "iconIsText": false,
+  "name": "Surface water from radar",
+  "description": "Open water (rivers, lakes, flooded land) detected in Sentinel-1 radar images by NASA OPERA.",
+  "gibsLayers": [
+   "OPERA_L3_Dynamic_Surface_Water_Extent-Sentinel-1"
+  ],
+  "gibsTitle": "Dynamic Surface Water Extent (Best, OPERA_L3_DSWx-S1)",
+  "start": "2026-11-04",
+  "end": "2026-11-15",
+  "static": false,
+  "coveragePercent": 30.2,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "classes",
+    "title": "Dynamic Surface Water Extent (Sentinel-1)",
+    "units": "",
+    "items": [
+     [
+      "#ffffff",
+      "Not Water"
+     ],
+     [
+      "#0000ff",
+      "Open Water"
+     ],
+     [
+      "#00ff00",
+      "Inundated Vegetation"
+     ],
+     [
+      "#c8c8c8",
+      "Height Above Nearest Drainage (HAND) masked"
+     ],
+     [
+      "#808080",
+      "Layover/shadow masked"
+     ]
+    ]
+   }
+  ],
+  "file": "surface_water.webp"
+ },
+ {
+  "id": "floods",
+  "category": "Water & radar",
+  "icon": "🚩",
+  "iconIsText": false,
+  "name": "Floods (last 3 days)",
+  "description": "Flooded areas compared with normal water extent, from MODIS on Terra and Aqua.",
+  "gibsLayers": [
+   "MODIS_Combined_Flood_3-Day"
+  ],
+  "gibsTitle": "Flood (3-Day Window, MODIS, Terra + Aqua)",
+  "start": "2026-11-15",
+  "end": "2026-11-15",
+  "static": false,
+  "coveragePercent": 27.0,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "classes",
+    "title": "Water Product",
+    "units": "",
+    "items": [
+     [
+      "#32d2f5",
+      "Surface Water"
+     ],
+     [
+      "#ffff00",
+      "Recurring Flood"
+     ],
+     [
+      "#fa1e24",
+      "Flood"
+     ],
+     [
+      "#afafaf",
+      "Insufficient Data"
+     ]
+    ]
+   }
+  ],
+  "file": "floods.webp"
+ },
+ {
+  "id": "nisar_tracks",
+  "category": "Water & radar",
+  "icon": "🛰️",
+  "iconIsText": false,
+  "name": "NISAR orbit tracks",
+  "description": "Where the NISAR radar satellite flies over the Earth during one day (ascending and descending passes).",
+  "gibsLayers": [
+   "OrbitTracks_NISAR_Ascending",
+   "OrbitTracks_NISAR_Descending"
+  ],
+  "gibsTitle": "Orbit Tracks (Ascending, NISAR)",
+  "start": "2026-11-15",
+  "end": "2026-11-15",
+  "static": false,
+  "coveragePercent": 5.8,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [],
+  "file": "nisar_tracks.webp"
+ },
+ {
+  "id": "no2",
+  "category": "Air quality",
+  "icon": "NO₂",
+  "iconIsText": true,
+  "name": "Nitrogen dioxide",
+  "description": "Air pollution from traffic, industry and power plants (TROPOMI on Sentinel-5P). Cities stand out clearly.",
+  "gibsLayers": [
+   "TROPOMI_L2_Nitrogen_Dioxide_Tropospheric_Column"
+  ],
+  "gibsTitle": "Nitrogen Dioxide (L2, Tropospheric Column, TROPOMI, Sentinel-5P)",
+  "start": "2026-11-11",
+  "end": "2026-11-13",
+  "static": false,
+  "coveragePercent": 69.8,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Nitrogen Dioxide",
+    "units": "molecules/cm²",
+    "colors": [
+     "#fffcc7",
+     "#ffea81",
+     "#ffd65d",
+     "#ffbe42",
+     "#ff9b2a",
+     "#ff7c20",
+     "#ff5417",
+     "#f82c10",
+     "#7f000e"
+    ],
+    "min": "< 0.0e+16",
+    "max": "≥ 2.0e+16"
+   }
+  ],
+  "file": "no2.webp"
+ },
+ {
+  "id": "so2",
+  "category": "Air quality",
+  "icon": "SO₂",
+  "iconIsText": true,
+  "name": "Sulfur dioxide",
+  "description": "Gas released by volcanoes, coal power plants and smelters (TROPOMI on Sentinel-5P).",
+  "gibsLayers": [
+   "TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"
+  ],
+  "gibsTitle": "Sulfur Dioxide (L2, Total Vertical Column, TROPOMI, Sentinel-5P)",
+  "start": "2026-11-11",
+  "end": "2026-11-13",
+  "static": false,
+  "coveragePercent": 5.7,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Sulfur Dioxide",
+    "units": "DU",
+    "colors": [
+     "#082864",
+     "#0b559f",
+     "#2474b6",
+     "#4594c7",
+     "#6eafd6",
+     "#a0cbe1",
+     "#c7dbef",
+     "#dfebf7",
+     "#f7fbff"
+    ],
+    "min": "< 2.0",
+    "max": "≥ 32.0"
+   }
+  ],
+  "file": "so2.webp"
+ },
+ {
+  "id": "aerosols",
+  "category": "Air quality",
+  "icon": "🌫️",
+  "iconIsText": false,
+  "name": "Aerosols (dust, smoke, haze)",
+  "description": "How much dust, smoke and haze is in the air (aerosol optical depth, MODIS).",
+  "gibsLayers": [
+   "MODIS_Combined_Value_Added_AOD"
+  ],
+  "gibsTitle": "Aerosol Optical Depth (Value Added, MODIS, Combined Aqua and Terra)",
+  "start": "2026-11-12",
+  "end": "2026-11-14",
+  "static": false,
+  "coveragePercent": 20.5,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Aerosol Optical Depth",
+    "units": "",
+    "colors": [
+     "#fffdcd",
+     "#ffe77b",
+     "#ffcb4e",
+     "#ff9e2d",
+     "#ff701e",
+     "#fc3a12",
+     "#e3110b",
+     "#b8000e",
+     "#7d000e"
+    ],
+    "min": "< 0.0",
+    "max": "5.0"
+   }
+  ],
+  "file": "aerosols.webp"
+ },
+ {
+  "id": "fires",
+  "category": "Air quality",
+  "icon": "🔥",
+  "iconIsText": false,
+  "name": "Active fires (last 3 days)",
+  "description": "Hot spots detected by the VIIRS instrument on NOAA-20: wildfires, crop burning, gas flares.",
+  "gibsLayers": [
+   "VIIRS_NOAA20_Thermal_Anomalies_375m_All"
+  ],
+  "gibsTitle": "Thermal Anomalies and Fires (375m, All, VIIRS, NOAA-20)",
+  "start": "2026-11-13",
+  "end": "2026-11-15",
+  "static": false,
+  "coveragePercent": 2.4,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [],
+  "file": "fires.webp"
+ },
+ {
+  "id": "sst",
+  "category": "Temperature, rain & ice",
+  "icon": "🌡️",
+  "iconIsText": false,
+  "name": "Sea surface temperature",
+  "description": "Temperature of the ocean surface, gap-free analysis of several satellites (GHRSST MUR).",
+  "gibsLayers": [
+   "GHRSST_L4_MUR_Sea_Surface_Temperature"
+  ],
+  "gibsTitle": "Sea Surface Temperature (L4, MUR, GHRSST)",
+  "start": "2026-11-14",
+  "end": "2026-11-14",
+  "static": false,
+  "coveragePercent": 53.7,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Sea Surface Temperature",
+    "units": "°C",
+    "colors": [
+     "#2b001a",
+     "#7a0677",
+     "#1e124e",
+     "#214b9e",
+     "#2ea3ef",
+     "#78d300",
+     "#ffb400",
+     "#e03e00",
+     "#6b0200"
+    ],
+    "min": "< 0.00",
+    "max": "≥ 32.00"
+   }
+  ],
+  "file": "sst.webp"
+ },
+ {
+  "id": "sst_anomaly",
+  "category": "Temperature, rain & ice",
+  "icon": "📈",
+  "iconIsText": false,
+  "name": "Sea temperature anomaly",
+  "description": "How much warmer (red) or colder (blue) the ocean is than usual for this time of year.",
+  "gibsLayers": [
+   "GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies"
+  ],
+  "gibsTitle": "Sea Surface Temperature Anomalies (L4,  MUR, GHRSST)",
+  "start": "2026-11-14",
+  "end": "2026-11-14",
+  "static": false,
+  "coveragePercent": 53.7,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Sea Surface Temperature Anomaly",
+    "units": "°C",
+    "colors": [
+     "#6b00db",
+     "#414be6",
+     "#03f8fa",
+     "#a4ff91",
+     "#c2cab8",
+     "#ffde43",
+     "#ff7100",
+     "#ec004a",
+     "#800000"
+    ],
+    "min": "< -3.0",
+    "max": "≥ 3.0"
+   }
+  ],
+  "file": "sst_anomaly.webp"
+ },
+ {
+  "id": "land_temp",
+  "category": "Temperature, rain & ice",
+  "icon": "🔆",
+  "iconIsText": false,
+  "name": "Land surface temperature",
+  "description": "Daytime temperature of the ground, 8-day average from MODIS on Terra.",
+  "gibsLayers": [
+   "MODIS_Terra_L3_Land_Surface_Temp_8Day_Day"
+  ],
+  "gibsTitle": "Land Surface Temperature (8-Day, Day, MODIS, Terra)",
+  "start": "2026-11-01",
+  "end": "2026-11-01",
+  "static": false,
+  "coveragePercent": 31.0,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Land Surface Temperature",
+    "units": "K",
+    "colors": [
+     "#c900ff",
+     "#4d00ff",
+     "#0047ff",
+     "#00e6ff",
+     "#66ff12",
+     "#dbff00",
+     "#ffc100",
+     "#ff5e00",
+     "#ff0100"
+    ],
+    "min": "< 200.0",
+    "max": "≥ 350.0"
+   }
+  ],
+  "file": "land_temp.webp"
+ },
+ {
+  "id": "precipitation",
+  "category": "Temperature, rain & ice",
+  "icon": "🌧️",
+  "iconIsText": false,
+  "name": "Rain and snowfall rate",
+  "description": "Precipitation from the GPM satellite constellation (IMERG).",
+  "gibsLayers": [
+   "IMERG_Precipitation_Rate"
+  ],
+  "gibsTitle": "Precipitation Rate (IMERG)",
+  "start": "2026-11-13",
+  "end": "2026-11-13",
+  "static": false,
+  "coveragePercent": 16.6,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Rain Rate",
+    "units": "mm/hr",
+    "colors": [
+     "#00764e",
+     "#009c14",
+     "#45c000",
+     "#cfe700",
+     "#ffa00c",
+     "#ff4233",
+     "#da0000",
+     "#8a0000",
+     "#330000"
+    ],
+    "min": "0.1",
+    "max": "≥ 53.0"
+   },
+   {
+    "type": "gradient",
+    "title": "Snow Rate",
+    "units": "mm/hr",
+    "colors": [
+     "#b1faee",
+     "#86e0ee",
+     "#66abdc",
+     "#4d70c5",
+     "#3e40d4",
+     "#632ee5",
+     "#790ac7",
+     "#720683",
+     "#3a0330"
+    ],
+    "min": "0.1",
+    "max": "≥ 53.0"
+   }
+  ],
+  "file": "precipitation.webp"
+ },
+ {
+  "id": "snow",
+  "category": "Temperature, rain & ice",
+  "icon": "❄️",
+  "iconIsText": false,
+  "name": "Snow cover",
+  "description": "Where the ground is covered with snow (MODIS on Terra).",
+  "gibsLayers": [
+   "MODIS_Terra_L3_NDSI_Snow_Cover_Daily"
+  ],
+  "gibsTitle": "Snow Cover (Normalized Difference Snow Index, L3, Daily, MODIS, Terra)",
+  "start": "2026-11-12",
+  "end": "2026-11-13",
+  "static": false,
+  "coveragePercent": 11.0,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "classes",
+    "title": "Normalized Difference Snow Index",
+    "units": "",
+    "items": [
+     [
+      "#f0f080",
+      "1"
+     ],
+     [
+      "#f0f081",
+      "2"
+     ],
+     [
+      "#f0f082",
+      "3"
+     ],
+     [
+      "#f0f083",
+      "4"
+     ],
+     [
+      "#f0f084",
+      "5"
+     ],
+     [
+      "#f0f085",
+      "6"
+     ],
+     [
+      "#f0f086",
+      "7"
+     ],
+     [
+      "#f0f087",
+      "8"
+     ]
+    ]
+   }
+  ],
+  "file": "snow.webp"
+ },
+ {
+  "id": "sea_ice",
+  "category": "Temperature, rain & ice",
+  "icon": "🧊",
+  "iconIsText": false,
+  "name": "Sea ice",
+  "description": "Share of the sea surface covered by ice.",
+  "gibsLayers": [
+   "GHRSST_L4_MUR_Sea_Ice_Concentration"
+  ],
+  "gibsTitle": "Sea Ice Concentration (L4,  MUR, GHRSST)",
+  "start": "2026-11-14",
+  "end": "2026-11-14",
+  "static": false,
+  "coveragePercent": 11.3,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Sea Ice Concentration",
+    "units": "%",
+    "colors": [
+     "#111111",
+     "#c600c6",
+     "#5c00ff",
+     "#0094ff",
+     "#00d98e",
+     "#44c100",
+     "#ffd400",
+     "#ff0909",
+     "#ffffff"
+    ],
+    "min": "0",
+    "max": "100"
+   }
+  ],
+  "file": "sea_ice.webp"
+ },
+ {
+  "id": "vegetation",
+  "category": "Land & hazards",
+  "icon": "🌳",
+  "iconIsText": false,
+  "name": "Vegetation (NDVI)",
+  "description": "How green and dense the plants are, 8-day composite from VIIRS on NOAA-20.",
+  "gibsLayers": [
+   "VIIRS_NOAA20_NDVI_8Day"
+  ],
+  "gibsTitle": "Normalized Difference Vegetation Index (rolling 8-Day, VIIRS, NOAA-20)",
+  "start": "2026-11-14",
+  "end": "2026-11-14",
+  "static": false,
+  "coveragePercent": 18.1,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "gradient",
+    "title": "Vegetation Indices",
+    "units": "",
+    "colors": [
+     "#f1ecec",
+     "#e1d2c6",
+     "#b4a596",
+     "#a18063",
+     "#96ba20",
+     "#56a101",
+     "#2e8000",
+     "#006400",
+     "#001801"
+    ],
+    "min": "0.0",
+    "max": "1.0"
+   }
+  ],
+  "file": "vegetation.webp"
+ },
+ {
+  "id": "landslide_hazard",
+  "category": "Land & hazards",
+  "icon": "⛰️",
+  "iconIsText": false,
+  "name": "Landslide hazard",
+  "description": "Where landslides are likely (NASA SEDAC natural disaster hotspots, static).",
+  "gibsLayers": [
+   "NDH_Landslide_Hazard_Distribution_2000"
+  ],
+  "gibsTitle": "Landslide Hazard (Global Landslide Hazard Distribution, 2000)",
+  "start": null,
+  "end": null,
+  "static": true,
+  "coveragePercent": 9.5,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "classes",
+    "title": "Landslide Hazard",
+    "units": "",
+    "items": [
+     [
+      "#fefefe",
+      "Negligible to Very Low"
+     ],
+     [
+      "#fffecc",
+      "Low"
+     ],
+     [
+      "#ffeda0",
+      "Low to Moderate"
+     ],
+     [
+      "#fed976",
+      "Moderate"
+     ],
+     [
+      "#feb24c",
+      "Medium"
+     ],
+     [
+      "#fd8d3c",
+      "Medium to High"
+     ],
+     [
+      "#fc4e20",
+      "High"
+     ],
+     [
+      "#b10026",
+      "Very High"
+     ]
+    ]
+   }
+  ],
+  "file": "landslide_hazard.webp"
+ },
+ {
+  "id": "flood_hazard",
+  "category": "Land & hazards",
+  "icon": "⛈️",
+  "iconIsText": false,
+  "name": "Flood hazard",
+  "description": "How often floods happened in 1985–2003 (NASA SEDAC natural disaster hotspots, static).",
+  "gibsLayers": [
+   "NDH_Flood_Hazard_Frequency_Distribution_1985-2003"
+  ],
+  "gibsTitle": "Flood Hazard (Global Flood Hazard Frequency and Distribution, 1985-2003)",
+  "start": null,
+  "end": null,
+  "static": true,
+  "coveragePercent": 11.0,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "classes",
+    "title": "Flood Hazard",
+    "units": "",
+    "items": [
+     [
+      "#f5f6d9",
+      "1"
+     ],
+     [
+      "#ebeddf",
+      "2"
+     ],
+     [
+      "#e1e4e5",
+      "3"
+     ],
+     [
+      "#d7dbeb",
+      "4"
+     ],
+     [
+      "#bdc9e1",
+      "5"
+     ],
+     [
+      "#b2c4de",
+      "6"
+     ],
+     [
+      "#a8bfdb",
+      "7"
+     ],
+     [
+      "#9dbbd9",
+      "8"
+     ]
+    ]
+   }
+  ],
+  "file": "flood_hazard.webp"
+ },
+ {
+  "id": "drought_hazard",
+  "category": "Land & hazards",
+  "icon": "🏜️",
+  "iconIsText": false,
+  "name": "Drought hazard",
+  "description": "How often droughts happened in 1980–2000 (NASA SEDAC natural disaster hotspots, static).",
+  "gibsLayers": [
+   "NDH_Drought_Hazard_Frequency_Distribution_1980-2000"
+  ],
+  "gibsTitle": "Drought Hazard (Global Drought Hazard Frequency and Distribution, 1980-2000)",
+  "start": null,
+  "end": null,
+  "static": true,
+  "coveragePercent": 19.5,
+  "opacity": 0.85,
+  "night": false,
+  "legend": [
+   {
+    "type": "classes",
+    "title": "Drought Hazard",
+    "units": "",
+    "items": [
+     [
+      "#fefefe",
+      "0"
+     ],
+     [
+      "#fdf5e4",
+      "1"
+     ],
+     [
+      "#fdeccb",
+      "2"
+     ],
+     [
+      "#fde4b2",
+      "3"
+     ],
+     [
+      "#fdd88d",
+      "4"
+     ],
+     [
+      "#fdc26b",
+      "5"
+     ],
+     [
+      "#fdad49",
+      "6"
+     ],
+     [
+      "#fd9828",
+      "7"
+     ]
+    ]
+   }
+  ],
+  "file": "drought_hazard.webp"
+ },
+ {
+  "id": "night_lights",
+  "category": "Night",
+  "icon": "🌃",
+  "iconIsText": false,
+  "name": "Night lights",
+  "description": "The Earth at night (VIIRS Black Marble): city lights. Switches the globe to night mode.",
+  "gibsLayers": [
+   "VIIRS_Black_Marble"
+  ],
+  "gibsTitle": "Black Marble (VIIRS, Suomi NPP)",
+  "start": "2016-01-01",
+  "end": "2016-01-01",
+  "static": false,
+  "coveragePercent": 100.0,
+  "opacity": 1.0,
+  "night": true,
+  "legend": [],
+  "file": "night_lights.webp"
+ }
+]
