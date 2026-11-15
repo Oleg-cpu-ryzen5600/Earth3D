@@ -584,7 +584,7 @@ const sarStats = sarMeta.stats;
 const DATA_LAYERS = [
     {
         id: 'water',
-        category: 'Our processed data',
+        category: 'Water & radar',
         icon: '💧',
         name: 'Surface water & moisture',
         description: 'Radar satellites see how wet and rough the ground is, even through clouds and at night.',
@@ -603,7 +603,7 @@ const DATA_LAYERS = [
     },
     {
         id: 'ozone',
-        category: 'Our processed data',
+        category: 'Air quality',
         icon: 'O₃',
         iconIsText: true,
         name: 'Ozone layer',
@@ -628,7 +628,7 @@ const DATA_LAYERS = [
     },
     {
         id: 'radiation',
-        category: 'Our processed data',
+        category: 'Land & hazards',
         icon: '☢️',
         name: 'Radiation background',
         description: 'Gamma dose rate near the ground, measured by volunteers with Safecast dosimeters. Only measured places are coloured.',
@@ -675,15 +675,57 @@ gibsManifest.forEach((m) =>
     });
 });
 
-// Night mode (night lights layer): dark globe, no Sun, dimmer atmosphere
-let nightActive = false;
+// One panel group per theme; our own processed layers sit in the matching group (stable sort)
+const CATEGORY_ORDER = ['Water & radar', 'Air quality', 'Temperature, rain & ice', 'Land & hazards', 'Night'];
+const categoryRank = (category) =>
+{
+    const rank = CATEGORY_ORDER.indexOf(category);
+    return rank < 0 ? CATEGORY_ORDER.length : rank;
+};
+DATA_LAYERS.sort((a, b) => categoryRank(a.category) - categoryRank(b.category));
+
+// Night mode (night lights layer): the globe fades to dark, the Sun fades out, the city lights fade in
+const NIGHT_FADE_MS = 1500;
+let nightTarget = 0;              // 0 = day, 1 = night
+let nightLevel = 0;               // current, animated towards the target
+let nightLastTime = null;
+let nightLayer = null;
 const setNightMode = (on) =>
 {
-    if (on === nightActive) return;
-    nightActive = on;
-    earth.material.color.setScalar(on ? 0.06 : 1);
-    sun.visible = !on;
-    atmosphere.material.opacity = on ? 0.35 : 1;
+    nightTarget = on ? 1 : 0;
+    nightLastTime = null;
+    requestRender();
+};
+const applyNight = () =>
+{
+    const t = nightLevel * nightLevel * (3 - 2 * nightLevel);      // smoothstep
+    earth.material.color.setScalar(1 - 0.94 * t);
+    sun.material.opacity = 1 - t;
+    sun.visible = t < 0.999;
+    atmosphere.material.opacity = 1 - 0.65 * t;
+    if (nightLayer?.mesh)
+    {
+        // the lights appear in the second half of the fade, after the day side has dimmed
+        const lights = Math.min(1, Math.max(0, (nightLevel - 0.35) / 0.65));
+        nightLayer.material.opacity = nightLayer.userOpacity * lights;
+        nightLayer.mesh.visible = lights > 0 && Boolean(nightLayer.material.map);
+    }
+};
+const stepNight = (now) =>
+{
+    if (nightLevel === nightTarget)
+    {
+        nightLastTime = null;
+        if (nightLevel === 0 && nightLayer && !nightLayer.isOn && nightLayer.material?.map) nightLayer.unload();
+        return;
+    }
+    const dt = nightLastTime === null ? 16 : Math.min(100, now - nightLastTime);
+    nightLastTime = now;
+    const step = dt / NIGHT_FADE_MS;
+    nightLevel = nightTarget > nightLevel
+        ? Math.min(nightTarget, nightLevel + step)
+        : Math.max(nightTarget, nightLevel - step);
+    applyNight();
     requestRender();
 };
 
@@ -887,10 +929,21 @@ DATA_LAYERS.forEach((layer, index) =>
         slider.disabled = !on;
         card.classList.toggle('layer--off', !on);
         value.textContent = `${Math.round(Number(slider.value) * 100)}%`;
+        layer.isOn = on;
+        layer.unload = unloadLazy;
         if (layer.lazy && available)
         {
             if (on) loadLazy();
-            else unloadLazy();
+            else if (!layer.night) unloadLazy();    // night lights are freed after they have faded out
+        }
+        if (layer.night)
+        {
+            // visibility and opacity of the lights are driven by the night fade
+            nightLayer = layer;
+            layer.userOpacity = Number(slider.value);
+            setNightMode(on && Boolean(layer.material?.map));
+            if (layer.mesh) applyNight();
+            return;
         }
         if (layer.mesh)
         {
@@ -898,7 +951,6 @@ DATA_LAYERS.forEach((layer, index) =>
             layer.material.opacity = Number(slider.value);
             requestRender();
         }
-        if (layer.night) setNightMode(on && Boolean(layer.mesh?.visible));
     };
     toggle.addEventListener('change', update);
     slider.addEventListener('input', update);
@@ -1163,6 +1215,7 @@ window.addEventListener('dblclick', () =>
 // ---------------------------------------------------------------------------
 const tick = (now = performance.now()) =>
 {
+    stepNight(now);
     if (resetAnimation) stepReset(now);
     else controls.update(); // fires 'change' while the camera is still moving
 
