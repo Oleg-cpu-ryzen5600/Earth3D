@@ -171,7 +171,14 @@ def legend(colormap_url):
         if not entries:
             continue
         hexc = lambda rgb: "#%02x%02x%02x" % tuple(int(v) for v in rgb.split(",")[:3])
-        if leg.get("type") == "continuous":
+        def numeric(label):
+            try:
+                float(label.replace("%", "").replace("≥", "").replace("<", "").replace(">", "").replace("-", "", 1).strip().split(" ")[0])
+                return True
+            except ValueError:
+                return False
+        many_numeric = len(entries) > 8 and all(numeric(e.get("tooltip") or "") for e in entries[:20])
+        if leg.get("type") == "continuous" or many_numeric:
             idx = np.linspace(0, len(entries) - 1, min(9, len(entries))).round().astype(int)
             blocks.append({
                 "type": "gradient", "title": title, "units": cmap.get("units") or "",
