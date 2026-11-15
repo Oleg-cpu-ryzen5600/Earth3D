@@ -13,7 +13,7 @@
   "start": "2026-11-10",
   "end": "2026-11-12",
   "static": false,
-  "coveragePercent": 14.5,
+  "coveragePercent": 15.4,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -52,7 +52,7 @@
   "start": "2026-11-04",
   "end": "2026-11-15",
   "static": false,
-  "coveragePercent": 9.4,
+  "coveragePercent": 5.0,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -62,11 +62,11 @@
     "units": "",
     "items": [
      [
-      "#0000ff",
+      "#19e3ff",
       "Open Water"
      ],
      [
-      "#00ff00",
+      "#9dff3a",
       "Inundated Vegetation"
      ]
     ]
@@ -88,7 +88,7 @@
   "start": "2026-11-15",
   "end": "2026-11-15",
   "static": false,
-  "coveragePercent": 2.6,
+  "coveragePercent": 26.9,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -108,6 +108,10 @@
      [
       "#fa1e24",
       "Flood"
+     ],
+     [
+      "repeating-linear-gradient(45deg, #969696 0 3px, transparent 3px 6px)",
+      "No data (clouds)"
      ]
     ]
    }
@@ -185,7 +189,7 @@
    "TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"
   ],
   "gibsTitle": "Sulfur Dioxide (L2, Total Vertical Column, TROPOMI, Sentinel-5P)",
-  "start": "2026-11-11",
+  "start": "2026-11-09",
   "end": "2026-11-13",
   "static": false,
   "coveragePercent": 0.1,
@@ -197,15 +201,10 @@
     "title": "Sulfur Dioxide",
     "units": "DU",
     "colors": [
-     "#082864",
-     "#0b559f",
-     "#2474b6",
-     "#4594c7",
-     "#6eafd6",
-     "#a0cbe1",
-     "#c7dbef",
-     "#dfebf7",
-     "#f7fbff"
+     "#6a1b9a",
+     "#d81b60",
+     "#ff6d00",
+     "#ffea00"
     ],
     "min": "< 2.0",
     "max": "≥ 32.0"
@@ -227,7 +226,7 @@
   "start": "2026-11-12",
   "end": "2026-11-14",
   "static": false,
-  "coveragePercent": 10.1,
+  "coveragePercent": 10.0,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -286,7 +285,7 @@
   "start": "2026-11-14",
   "end": "2026-11-14",
   "static": false,
-  "coveragePercent": 53.7,
+  "coveragePercent": 54.0,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -295,18 +294,16 @@
     "title": "Sea Surface Temperature",
     "units": "°C",
     "colors": [
-     "#2b001a",
-     "#7a0677",
-     "#1e124e",
-     "#214b9e",
-     "#2ea3ef",
-     "#78d300",
-     "#ffb400",
-     "#e03e00",
-     "#6b0200"
+     "#283593",
+     "#1e88e5",
+     "#26c6da",
+     "#66bb6a",
+     "#fdd835",
+     "#fb8c00",
+     "#d84315"
     ],
-    "min": "< 0.00",
-    "max": "≥ 32.00"
+    "min": "≤ 0",
+    "max": "≥ 30"
    }
   ],
   "file": "sst.webp"
@@ -403,7 +400,7 @@
   "start": "2026-11-13",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 16.6,
+  "coveragePercent": 17.9,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -460,7 +457,7 @@
   "start": "2026-11-12",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 11.0,
+  "coveragePercent": 11.4,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -499,7 +496,7 @@
   "start": "2026-11-14",
   "end": "2026-11-14",
   "static": false,
-  "coveragePercent": 12.3,
+  "coveragePercent": 20.0,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -520,6 +517,17 @@
     ],
     "min": "0",
     "max": "100"
+   },
+   {
+    "type": "classes",
+    "title": "",
+    "units": "",
+    "items": [
+     [
+      "#dfe8f0",
+      "Land ice (ice sheet)"
+     ]
+    ]
    }
   ],
   "file": "sea_ice.webp"
@@ -577,7 +585,7 @@
   "start": null,
   "end": null,
   "static": true,
-  "coveragePercent": 3.0,
+  "coveragePercent": 2.7,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -633,7 +641,7 @@
   "start": null,
   "end": null,
   "static": true,
-  "coveragePercent": 3.5,
+  "coveragePercent": 3.4,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -672,7 +680,7 @@
   "start": null,
   "end": null,
   "static": true,
-  "coveragePercent": 19.5,
+  "coveragePercent": 22.4,
   "opacity": 0.85,
   "night": false,
   "legend": [
