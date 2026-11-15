@@ -56,7 +56,7 @@ LAYERS = [
     dict(id="no2", layers=["TROPOMI_L2_Nitrogen_Dioxide_Tropospheric_Column"], days=3, width=4096, smooth=3, min_frac=0.08,
          category="Air quality", icon="NO₂", icon_text=True, name="Nitrogen dioxide",
          description="Air pollution from traffic, industry and power plants (TROPOMI on Sentinel-5P). Cities stand out clearly."),
-    dict(id="so2", layers=["TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"], days=5, width=2048, soft=True, smooth=2, out=4096, min_index=1, sparse=True,
+    dict(id="so2", layers=["TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"], days=5, width=2048, soft=True, smooth=2, out=4096, min_frac=0.12, sparse=True,
          colors=["#6a1b9a", "#d81b60", "#ff6d00", "#ffea00"],
          category="Air quality", icon="SO₂", icon_text=True, name="Sulfur dioxide",
          description="Gas released by volcanoes, coal power plants and smelters (TROPOMI on Sentinel-5P)."),
@@ -258,8 +258,11 @@ def mosaic_soft(layers, width, end, days, pal, cfg):
     """Like the radiation layer: values instead of colours, holes filled by normalized convolution,
     bilinear upscaling, rounded soft-edged zones, and a smooth colour gradient (no blocky pixels)."""
     sparse = bool(cfg.get("sparse"))
+    n = len(pal)
+    cut = cfg.get("min_index", round(cfg.get("min_frac", 0) * (n - 1)))
     total = np.zeros((width // 2, width), np.float64)
     count = np.zeros_like(total)
+    hits = np.zeros_like(total)
     used = []
     dates = [end - dt.timedelta(days=k) for k in range(days)] if end else [None]
     for day in dates:
@@ -271,15 +274,15 @@ def mosaic_soft(layers, width, end, days, pal, cfg):
                     # rare hotspots: keep the strongest value of all days, never average it away
                     total[ok] = np.maximum(total[ok], idx[ok])
                     count[ok] = 1
+                    hits[ok & (idx >= cut)] += 1
                 else:
                     total[ok] += idx[ok]
                     count[ok] += 1
                 if day and day not in used:
                     used.append(day)
-    n = len(pal)
-    cut = cfg.get("min_index", round(cfg.get("min_frac", 0) * (n - 1)))
     if sparse:
-        weak = total < cut                    # background noise is no data, not a low value
+        # background noise is no data, not a low value; a real source shows up on at least 2 days
+        weak = (total < cut) | (hits < cfg.get("min_days", 2))
         total[weak] = 0
         count[weak] = 0
     has = (count > 0).astype(np.float64)
