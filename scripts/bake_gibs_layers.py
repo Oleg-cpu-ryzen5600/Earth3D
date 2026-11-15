@@ -41,8 +41,8 @@ LAYERS = [
          category="Water & radar", icon="🌱", name="Soil moisture (SMAP)",
          description="Water in the top 5 cm of soil, measured by the SMAP L-band radiometer — an independent check of the radar water layer."),
     dict(id="surface_water", layers=["OPERA_L3_Dynamic_Surface_Water_Extent-Sentinel-1"], days=12, width=4096, lossless=True,
-         drop=["#ffffff", "#c8c8c8", "#808080", "#000000"], land_only=True, thicken=1,
-         recolor={"#0000ff": "#19e3ff", "#00ff00": "#9dff3a"},
+         drop=["#ffffff", "#c8c8c8", "#808080", "#000000", "#00ff00"], land_only=True, thicken=1,
+         recolor={"#0000ff": "#19e3ff"},
          category="Water & radar", icon="🌊", name="Surface water from radar",
          description="Open water (rivers, lakes, flooded land) detected in Sentinel-1 radar images by NASA OPERA."),
     dict(id="floods", layers=["MODIS_Combined_Flood_3-Day"], days=1, width=4096, lossless=True,
@@ -56,11 +56,11 @@ LAYERS = [
     dict(id="no2", layers=["TROPOMI_L2_Nitrogen_Dioxide_Tropospheric_Column"], days=3, width=4096, smooth=3, min_frac=0.08,
          category="Air quality", icon="NO₂", icon_text=True, name="Nitrogen dioxide",
          description="Air pollution from traffic, industry and power plants (TROPOMI on Sentinel-5P). Cities stand out clearly."),
-    dict(id="so2", layers=["TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"], days=5, width=2048, soft=True, smooth=2, out=4096, min_frac=0.06,
+    dict(id="so2", layers=["TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"], days=5, width=2048, soft=True, smooth=2, out=4096, min_index=1, sparse=True,
          colors=["#6a1b9a", "#d81b60", "#ff6d00", "#ffea00"],
          category="Air quality", icon="SO₂", icon_text=True, name="Sulfur dioxide",
          description="Gas released by volcanoes, coal power plants and smelters (TROPOMI on Sentinel-5P)."),
-    dict(id="aerosols", layers=["MODIS_Combined_Value_Added_AOD"], days=3, width=2048, soft=True, smooth=2, out=4096, min_frac=0.12,
+    dict(id="aerosols", layers=["MODIS_Combined_Value_Added_AOD"], days=3, width=2048, soft=True, smooth=3, out=4096, min_frac=0.12,
          category="Air quality", icon="🌫️", name="Aerosols (dust, smoke, haze)",
          description="How much dust, smoke and haze is in the air (aerosol optical depth, MODIS)."),
     dict(id="fires", layers=["VIIRS_NOAA20_Thermal_Anomalies_375m_All"], days=3, width=4096, lossless=True,
@@ -257,6 +257,7 @@ def smoothstep(x):
 def mosaic_soft(layers, width, end, days, pal, cfg):
     """Like the radiation layer: values instead of colours, holes filled by normalized convolution,
     bilinear upscaling, rounded soft-edged zones, and a smooth colour gradient (no blocky pixels)."""
+    sparse = bool(cfg.get("sparse"))
     total = np.zeros((width // 2, width), np.float64)
     count = np.zeros_like(total)
     used = []
@@ -266,10 +267,21 @@ def mosaic_soft(layers, width, end, days, pal, cfg):
             idx = to_index(wms(layer, width, day), pal)
             ok = idx >= 0
             if ok.any():
-                total[ok] += idx[ok]
-                count[ok] += 1
+                if sparse:
+                    # rare hotspots: keep the strongest value of all days, never average it away
+                    total[ok] = np.maximum(total[ok], idx[ok])
+                    count[ok] = 1
+                else:
+                    total[ok] += idx[ok]
+                    count[ok] += 1
                 if day and day not in used:
                     used.append(day)
+    n = len(pal)
+    cut = cfg.get("min_index", round(cfg.get("min_frac", 0) * (n - 1)))
+    if sparse:
+        weak = total < cut                    # background noise is no data, not a low value
+        total[weak] = 0
+        count[weak] = 0
     has = (count > 0).astype(np.float64)
     r = int(cfg.get("smooth", 1))
     w, t, p = count, total, has
@@ -279,10 +291,11 @@ def mosaic_soft(layers, width, end, days, pal, cfg):
     out_w = cfg.get("out", width)
     v = resize_float(v, out_w)
     p = resize_float(p, out_w)
-    n = len(pal)
-    alpha = smoothstep((p - 0.35) / 0.3)       # rounded zone edges, small gaps filled
-    cut = cfg.get("min_index", round(cfg.get("min_frac", 0) * (n - 1)))
-    if cut > 0:
+    if sparse:
+        alpha = smoothstep((p - 0.01) / 0.05)  # even a single hotspot pixel becomes a soft dot
+    else:
+        alpha = smoothstep((p - 0.35) / 0.3)   # rounded zone edges, small gaps filled
+    if cut > 0 and not sparse:
         band = max(0.6, 0.03 * (n - 1))
         alpha *= smoothstep((v - cut) / band + 0.5)
     if cfg.get("value_range"):
