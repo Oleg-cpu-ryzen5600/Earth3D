@@ -41,22 +41,23 @@ LAYERS = [
          category="Water & radar", icon="🌱", name="Soil moisture (SMAP)",
          description="Water in the top 5 cm of soil, measured by the SMAP L-band radiometer — an independent check of the radar water layer."),
     dict(id="surface_water", layers=["OPERA_L3_Dynamic_Surface_Water_Extent-Sentinel-1"], days=12, width=4096, lossless=True,
+         drop=["#ffffff", "#c8c8c8", "#808080", "#000000"],
          category="Water & radar", icon="🌊", name="Surface water from radar",
          description="Open water (rivers, lakes, flooded land) detected in Sentinel-1 radar images by NASA OPERA."),
-    dict(id="floods", layers=["MODIS_Combined_Flood_3-Day"], days=1, width=4096, lossless=True,
+    dict(id="floods", layers=["MODIS_Combined_Flood_3-Day"], days=1, width=4096, lossless=True, drop=["#afafaf"],
          category="Water & radar", icon="🚩", name="Floods (last 3 days)",
          description="Flooded areas compared with normal water extent, from MODIS on Terra and Aqua."),
     dict(id="nisar_tracks", layers=["OrbitTracks_NISAR_Ascending", "OrbitTracks_NISAR_Descending"], days=1, width=4096,
          lossless=True, category="Water & radar", icon="🛰️", name="NISAR orbit tracks",
          description="Where the NISAR radar satellite flies over the Earth during one day (ascending and descending passes)."),
     # --- Air
-    dict(id="no2", layers=["TROPOMI_L2_Nitrogen_Dioxide_Tropospheric_Column"], days=3, width=4096,
+    dict(id="no2", layers=["TROPOMI_L2_Nitrogen_Dioxide_Tropospheric_Column"], days=3, width=4096, smooth=3, min_frac=0.2,
          category="Air quality", icon="NO₂", icon_text=True, name="Nitrogen dioxide",
          description="Air pollution from traffic, industry and power plants (TROPOMI on Sentinel-5P). Cities stand out clearly."),
-    dict(id="so2", layers=["TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"], days=3, width=4096,
+    dict(id="so2", layers=["TROPOMI_L2_Sulfur_Dioxide_Total_Vertical_Column"], days=3, width=4096, smooth=3, min_frac=0.25,
          category="Air quality", icon="SO₂", icon_text=True, name="Sulfur dioxide",
          description="Gas released by volcanoes, coal power plants and smelters (TROPOMI on Sentinel-5P)."),
-    dict(id="aerosols", layers=["MODIS_Combined_Value_Added_AOD"], days=3, width=2048,
+    dict(id="aerosols", layers=["MODIS_Combined_Value_Added_AOD"], days=3, width=2048, smooth=1, min_frac=0.12,
          category="Air quality", icon="🌫️", name="Aerosols (dust, smoke, haze)",
          description="How much dust, smoke and haze is in the air (aerosol optical depth, MODIS)."),
     dict(id="fires", layers=["VIIRS_NOAA20_Thermal_Anomalies_375m_All"], days=3, width=4096, lossless=True,
@@ -85,13 +86,13 @@ LAYERS = [
     dict(id="vegetation", layers=["VIIRS_NOAA20_NDVI_8Day"], days=1, width=4096,
          category="Land & hazards", icon="🌳", name="Vegetation (NDVI)",
          description="How green and dense the plants are, 8-day composite from VIIRS on NOAA-20."),
-    dict(id="landslide_hazard", layers=["NDH_Landslide_Hazard_Distribution_2000"], days=1, width=4096,
+    dict(id="landslide_hazard", layers=["NDH_Landslide_Hazard_Distribution_2000"], days=1, width=4096, min_index=1,
          category="Land & hazards", icon="⛰️", name="Landslide hazard",
          description="Where landslides are likely (NASA SEDAC natural disaster hotspots, static)."),
-    dict(id="flood_hazard", layers=["NDH_Flood_Hazard_Frequency_Distribution_1985-2003"], days=1, width=4096,
+    dict(id="flood_hazard", layers=["NDH_Flood_Hazard_Frequency_Distribution_1985-2003"], days=1, width=4096, min_index=1,
          category="Land & hazards", icon="⛈️", name="Flood hazard",
          description="How often floods happened in 1985–2003 (NASA SEDAC natural disaster hotspots, static)."),
-    dict(id="drought_hazard", layers=["NDH_Drought_Hazard_Frequency_Distribution_1980-2000"], days=1, width=4096,
+    dict(id="drought_hazard", layers=["NDH_Drought_Hazard_Frequency_Distribution_1980-2000"], days=1, width=4096, min_index=1,
          category="Land & hazards", icon="🏜️", name="Drought hazard",
          description="How often droughts happened in 1980–2000 (NASA SEDAC natural disaster hotspots, static)."),
     # --- Night
@@ -153,7 +154,87 @@ def mosaic(layers, width, end, days):
     return out, sorted(used)
 
 
-def legend(colormap_url):
+def hex_rgb(h):
+    return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def palette(colormap_url):
+    """Ordered colours (low -> high) of the first data colour map, without transparent entries."""
+    root = ET.fromstring(http_get(colormap_url))
+    for cmap in root.iter("ColorMap"):
+        if (cmap.get("title") or "").lower().startswith("no data"):
+            continue
+        rgbs = [tuple(int(v) for v in e.get("rgb").split(",")[:3])
+                for e in cmap.iter("ColorMapEntry") if e.get("transparent") != "true"]
+        if rgbs:
+            return np.array(rgbs, np.float32)
+    return None
+
+
+def to_index(img, pal):
+    """Palette index of every opaque pixel (-1 where empty), by nearest colour."""
+    valid = img[..., 3] > 127
+    rgb = img[..., :3].astype(np.int64)
+    packed = (rgb[..., 0] << 16) | (rgb[..., 1] << 8) | rgb[..., 2]
+    uniq, inv = np.unique(packed[valid], return_inverse=True)
+    ucol = np.stack([(uniq >> 16) & 255, (uniq >> 8) & 255, uniq & 255], 1).astype(np.float32)
+    nearest = np.empty(len(uniq), np.int32)
+    for a in range(0, len(uniq), 4096):
+        d = ((ucol[a:a + 4096, None, :] - pal[None]) ** 2).sum(-1)
+        nearest[a:a + 4096] = d.argmin(1)
+    idx = np.full(img.shape[:2], -1, np.int32)
+    idx[valid] = nearest[inv.reshape(-1)]
+    return idx
+
+
+def box_blur(a, r):
+    """Box filter of radius r, wrapping in longitude."""
+    if r <= 0:
+        return a
+    p = np.pad(a, ((r, r), (0, 0)), mode="edge")
+    p = np.concatenate([p[:, -r:], p, p[:, :r]], 1)
+    c = np.cumsum(np.cumsum(np.pad(p, ((1, 0), (1, 0))), 0), 1)
+    k = 2 * r + 1
+    return (c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]) / (k * k)
+
+
+def mosaic_values(layers, width, end, days, pal, cfg):
+    """Mean palette index over several days, gaps and stipple filled by normalized convolution,
+    low values made transparent, then recoloured with the layer's own palette."""
+    total = np.zeros((width // 2, width), np.float64)
+    count = np.zeros_like(total)
+    used = []
+    dates = [end - dt.timedelta(days=k) for k in range(days)] if end else [None]
+    for day in dates:
+        for layer in layers:
+            idx = to_index(wms(layer, width, day), pal)
+            ok = idx >= 0
+            if ok.any():
+                total[ok] += idx[ok]
+                count[ok] += 1
+                if day and day not in used:
+                    used.append(day)
+    r = int(cfg.get("smooth", 0))
+    w = box_blur(count, r)
+    v = box_blur(total, r) / np.maximum(w, 1e-9)
+    keep = w > (0.08 if r else 0)
+    n = len(pal)
+    cut = cfg.get("min_index", round(cfg.get("min_frac", 0) * (n - 1)))
+    keep &= v >= cut
+    out = np.zeros((width // 2, width, 4), np.uint8)
+    out[..., :3] = pal[np.clip(np.rint(v), 0, n - 1).astype(int)].astype(np.uint8)
+    out[..., 3] = np.where(keep, 255, 0)
+    return out, sorted(used)
+
+
+def drop_colors(img, colors, tol=12):
+    for h in colors:
+        c = np.array(hex_rgb(h), np.int16)
+        img[(np.abs(img[..., :3].astype(np.int16) - c).max(-1) <= tol)] = 0
+    return img
+
+
+def legend(colormap_url, cfg=None):
     """Legend blocks from a GIBS v1.3 colour map: continuous -> gradient, classification -> classes."""
     if not colormap_url:
         return []
@@ -187,7 +268,10 @@ def legend(colormap_url):
                 "max": leg.get("maxLabel") or entries[-1].get("tooltip", ""),
             })
         else:
-            items = [[hexc(e.get("rgb")), e.get("tooltip") or ""] for e in entries][:8]
+            items = [[hexc(e.get("rgb")), e.get("tooltip") or ""] for e in entries]
+            if cfg:
+                items = [it for it in items if it[0] not in cfg.get("drop", [])][cfg.get("min_index", 0):]
+            items = items[:8]
             blocks.append({"type": "classes", "title": title, "units": cmap.get("units") or "", "items": items})
     return blocks
 
@@ -208,7 +292,12 @@ def main():
             continue
         t0 = time.time()
         end, cmap_url, title = layer_info(caps, cfg["layers"][0])
-        img, used = mosaic(cfg["layers"], cfg["width"], end, cfg["days"])
+        if any(k in cfg for k in ("smooth", "min_frac", "min_index")) and cmap_url:
+            img, used = mosaic_values(cfg["layers"], cfg["width"], end, cfg["days"], palette(cmap_url), cfg)
+        else:
+            img, used = mosaic(cfg["layers"], cfg["width"], end, cfg["days"])
+        if cfg.get("drop"):
+            img = drop_colors(img.copy(), cfg["drop"])
         cover = float((img[..., 3] > 0).mean() * 100)
         path = OUT_DIR / f"{cfg['id']}.webp"
         if cfg.get("lossless"):
@@ -222,7 +311,7 @@ def main():
             "start": used[0].isoformat() if used else None, "end": used[-1].isoformat() if used else None,
             "static": end is None, "coveragePercent": round(cover, 1),
             "opacity": cfg.get("opacity", 0.85), "night": bool(cfg.get("night")),
-            "legend": legend(cmap_url),
+            "legend": legend(cmap_url, cfg),
             "file": f"{cfg['id']}.webp",
         }
         manifest.append(entry)
