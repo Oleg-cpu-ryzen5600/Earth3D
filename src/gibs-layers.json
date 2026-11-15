@@ -52,7 +52,7 @@
   "start": "2026-11-04",
   "end": "2026-11-15",
   "static": false,
-  "coveragePercent": 5.0,
+  "coveragePercent": 2.8,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -64,10 +64,6 @@
      [
       "#19e3ff",
       "Open Water"
-     ],
-     [
-      "#9dff3a",
-      "Inundated Vegetation"
      ]
     ]
    }
@@ -192,7 +188,7 @@
   "start": "2026-11-09",
   "end": "2026-11-13",
   "static": false,
-  "coveragePercent": 0.1,
+  "coveragePercent": 24.2,
   "opacity": 0.85,
   "night": false,
   "legend": [
@@ -226,7 +222,7 @@
   "start": "2026-11-12",
   "end": "2026-11-14",
   "static": false,
-  "coveragePercent": 10.0,
+  "coveragePercent": 10.1,
   "opacity": 0.85,
   "night": false,
   "legend": [
